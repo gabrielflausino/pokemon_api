@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 export default function App() {
-  const [id, setId] = useState(6);
+  const [id, setId] = useState(25);
   const [pokemon, setPokemon] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
@@ -25,8 +25,8 @@ export default function App() {
   }, [id])
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
+   <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="bg-white/85 backdrop-blur-sm p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
         <h1 className="text-3xl font-bold text-slate-800 mb-6">Pokédex</h1>
         {carregando ? (<p>Carregando...</p>) :
           pokemon ? (
