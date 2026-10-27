@@ -77,7 +77,6 @@ const configuracaoStats = {
 // =====================================
 
 const formasEspeciais = {
-  // CASTFORM
   351: [
     {
       nome: "Normal Form",
@@ -101,7 +100,6 @@ const formasEspeciais = {
     },
   ],
 
-  // ORICORIO
   741: [
     {
       nome: "Baile Style",
@@ -125,7 +123,6 @@ const formasEspeciais = {
     },
   ],
 
-  // OGERPON
   1017: [
     {
       nome: "Teal Mask",
@@ -245,7 +242,7 @@ function verificarImagem(url, limite = 2500) {
 }
 
 // =====================================
-// PRIORIDADE DOS SPRITES
+// SPRITES
 // =====================================
 
 async function procurarSprite(id, jogos, shiny = false) {
@@ -261,10 +258,25 @@ async function procurarSprite(id, jogos, shiny = false) {
 }
 
 async function escolherImagem(dados, jogos, shiny = false) {
-  // Formas alternativas usam primeiro seus próprios sprites.
-  // Isso evita mostrar a imagem da forma original.
-
   const ehFormaAlternativa = dados.id > TOTAL_POKEMON;
+
+  // CORREÇÃO:
+  // Também procura os sprites dos jogos para formas
+  // alternativas, incluindo Hisui e Galar.
+
+  const spriteJogo = await procurarSprite(
+    dados.id,
+    jogos,
+    shiny
+  );
+
+  if (spriteJogo) {
+    return spriteJogo;
+  }
+
+  // Para formas alternativas, não usar imagens
+  // inventadas com IDs que não existem.
+  // Usa apenas URLs fornecidas pela PokéAPI.
 
   if (ehFormaAlternativa) {
     const candidatos = shiny
@@ -279,7 +291,9 @@ async function escolherImagem(dados, jogos, shiny = false) {
           dados.sprites?.front_default,
         ];
 
-    for (const url of [...new Set(candidatos.filter(Boolean))]) {
+    for (const url of [
+      ...new Set(candidatos.filter(Boolean)),
+    ]) {
       if (await verificarImagem(url, 3500)) {
         return url;
       }
@@ -288,18 +302,7 @@ async function escolherImagem(dados, jogos, shiny = false) {
     return null;
   }
 
-  // 1. Legends Z-A > Scarlet/Violet >
-  // Legends Arceus > Sword/Shield
-
-  const spriteJogo = await procurarSprite(
-    dados.id,
-    jogos,
-    shiny
-  );
-
-  if (spriteJogo) return spriteJogo;
-
-  // 2. Pokémon HOME
+  // Pokémon normais: Pokémon HOME como fallback.
 
   const home = shiny
     ? dados.sprites?.other?.home?.front_shiny ||
@@ -311,23 +314,21 @@ async function escolherImagem(dados, jogos, shiny = false) {
     return home;
   }
 
-  // 3. Outras imagens disponíveis
-
   const alternativas = imagensAlternativas(dados);
 
   const candidatos = shiny
     ? [
         alternativas.shiny,
-        dados.sprites?.other?.["official-artwork"]?.front_shiny,
         dados.sprites?.front_shiny,
       ]
     : [
         alternativas.normal,
-        dados.sprites?.other?.["official-artwork"]?.front_default,
         dados.sprites?.front_default,
       ];
 
-  for (const url of [...new Set(candidatos.filter(Boolean))]) {
+  for (const url of [
+    ...new Set(candidatos.filter(Boolean)),
+  ]) {
     if (await verificarImagem(url, 3500)) {
       return url;
     }
@@ -362,7 +363,10 @@ async function prepararForma(dados) {
       ]
     : jogosNormais;
 
-  const preparado = await prepararPokemon(dados, jogos);
+  const preparado = await prepararPokemon(
+    dados,
+    jogos
+  );
 
   return {
     ...preparado,
@@ -436,7 +440,9 @@ function ImagemPokemon({ pokemon, shiny }) {
         }
       }
 
-      if (ativo) setStatus("erro");
+      if (ativo) {
+        setStatus("erro");
+      }
     }
 
     carregar();
@@ -481,7 +487,10 @@ function ImagemPokemon({ pokemon, shiny }) {
 // =====================================
 
 function ImagemSugestao({ id, nome }) {
-  const [url, setUrl] = useState(() => imagemHome(id));
+  const [url, setUrl] = useState(() =>
+    imagemHome(id)
+  );
+
   const [falhou, setFalhou] = useState(false);
 
   return (
@@ -532,11 +541,13 @@ function EstatisticasPokemon({ pokemon }) {
       <div className="space-y-4">
         {pokemon.stats.map((stat) => {
           const tipo = stat.stat.name;
-          const configuracao = configuracaoStats[tipo];
+          const configuracao =
+            configuracaoStats[tipo];
 
           if (!configuracao) return null;
 
           const valor = stat.base_stat;
+
           const porcentagem = Math.min(
             (valor / 255) * 100,
             100
@@ -566,7 +577,8 @@ function EstatisticasPokemon({ pokemon }) {
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${porcentagem}%`,
-                    backgroundColor: configuracao.cor,
+                    backgroundColor:
+                      configuracao.cor,
                   }}
                 />
               </div>
@@ -600,22 +612,31 @@ export default function App() {
   const [id, setId] = useState(25);
 
   const [pokemon, setPokemon] = useState(null);
-  const [carregando, setCarregando] = useState(true);
-  const [erroCarregamento, setErroCarregamento] =
-    useState("");
+  const [carregando, setCarregando] =
+    useState(true);
+
+  const [
+    erroCarregamento,
+    setErroCarregamento,
+  ] = useState("");
 
   const [pesquisa, setPesquisa] = useState("");
-  const [erroPesquisa, setErroPesquisa] = useState("");
+  const [erroPesquisa, setErroPesquisa] =
+    useState("");
 
-  const [listaPokemon, setListaPokemon] = useState([]);
+  const [listaPokemon, setListaPokemon] =
+    useState([]);
+
   const [carregandoLista, setCarregandoLista] =
     useState(true);
 
   const [mostrarSugestoes, setMostrarSugestoes] =
     useState(false);
 
-  const [sugestaoSelecionada, setSugestaoSelecionada] =
-    useState(-1);
+  const [
+    sugestaoSelecionada,
+    setSugestaoSelecionada,
+  ] = useState(-1);
 
   const listaSugestoesRef = useRef(null);
 
@@ -626,17 +647,23 @@ export default function App() {
   const [regionais, setRegionais] = useState([]);
   const [formasTipo, setFormasTipo] = useState([]);
 
-  const [formaSelecionada, setFormaSelecionada] =
-    useState(null);
+  const [
+    formaSelecionada,
+    setFormaSelecionada,
+  ] = useState(null);
 
-  const [carregandoFormas, setCarregandoFormas] =
-    useState(false);
+  const [
+    carregandoFormas,
+    setCarregandoFormas,
+  ] = useState(false);
 
-  const [carregandoFormasTipo, setCarregandoFormasTipo] =
-    useState(false);
+  const [
+    carregandoFormasTipo,
+    setCarregandoFormasTipo,
+  ] = useState(false);
 
   // =====================================
-  // LISTA DE NOMES
+  // LISTA PARA PESQUISA
   // =====================================
 
   useEffect(() => {
@@ -655,19 +682,28 @@ export default function App() {
 
         const dados = await resposta.json();
 
-        const lista = dados.results.map((item) => {
-          const partes = item.url.split("/").filter(Boolean);
+        const lista = dados.results.map(
+          (item) => {
+            const partes = item.url
+              .split("/")
+              .filter(Boolean);
 
-          return {
-            id: Number(partes[partes.length - 1]),
-            nome: item.name,
-          };
-        });
+            return {
+              id: Number(
+                partes[partes.length - 1]
+              ),
+              nome: item.name,
+            };
+          }
+        );
 
         setListaPokemon(lista);
       } catch (erro) {
         if (erro.name !== "AbortError") {
-          console.error("Erro na lista:", erro);
+          console.error(
+            "Erro na lista:",
+            erro
+          );
         }
       } finally {
         if (!controlador.signal.aborted) {
@@ -688,17 +724,25 @@ export default function App() {
   const sugestoes = useMemo(() => {
     const texto = normalizarTexto(pesquisa);
 
-    if (texto.length < 2 || /^\d+$/.test(texto)) {
+    if (
+      texto.length < 2 ||
+      /^\d+$/.test(texto)
+    ) {
       return [];
     }
 
     return listaPokemon
       .filter((item) =>
-        normalizarTexto(item.nome).includes(texto)
+        normalizarTexto(
+          item.nome
+        ).includes(texto)
       )
       .sort((a, b) => {
-        const aComeca = a.nome.startsWith(texto);
-        const bComeca = b.nome.startsWith(texto);
+        const aComeca =
+          a.nome.startsWith(texto);
+
+        const bComeca =
+          b.nome.startsWith(texto);
 
         if (aComeca !== bComeca) {
           return aComeca ? -1 : 1;
@@ -710,14 +754,16 @@ export default function App() {
   }, [pesquisa, listaPokemon]);
 
   useEffect(() => {
-    if (!mostrarSugestoes || sugestaoSelecionada < 0) {
-      return;
-    }
+    if (!mostrarSugestoes) return;
+    if (sugestaoSelecionada < 0) return;
 
-    const lista = listaSugestoesRef.current;
+    const lista =
+      listaSugestoesRef.current;
+
     if (!lista) return;
 
-    const item = lista.children[sugestaoSelecionada];
+    const item =
+      lista.children[sugestaoSelecionada];
 
     if (item) {
       item.scrollIntoView({
@@ -725,10 +771,13 @@ export default function App() {
         behavior: "smooth",
       });
     }
-  }, [sugestaoSelecionada, mostrarSugestoes]);
+  }, [
+    sugestaoSelecionada,
+    mostrarSugestoes,
+  ]);
 
   // =====================================
-  // POKÉMON PRINCIPAL
+  // BUSCAR POKÉMON
   // =====================================
 
   useEffect(() => {
@@ -740,6 +789,7 @@ export default function App() {
 
       setPokemon(null);
       setFormaSelecionada(null);
+
       setMegas([]);
       setGigantamax([]);
       setRegionais([]);
@@ -751,21 +801,27 @@ export default function App() {
         );
 
         if (!resposta.ok) {
-          throw new Error("Pokémon não encontrado");
+          throw new Error(
+            "Pokémon não encontrado"
+          );
         }
 
         const dados = await resposta.json();
 
-        const preparado = await prepararPokemon(
-          dados,
-          jogosNormais
-        );
+        const preparado =
+          await prepararPokemon(
+            dados,
+            jogosNormais
+          );
 
         if (ativo) {
           setPokemon(preparado);
         }
       } catch (erro) {
-        console.error("Erro ao buscar Pokémon:", erro);
+        console.error(
+          "Erro ao buscar Pokémon:",
+          erro
+        );
 
         if (ativo) {
           setErroCarregamento(
@@ -804,83 +860,109 @@ export default function App() {
         );
 
         if (!resposta.ok) {
-          throw new Error("Erro ao buscar formas");
+          throw new Error(
+            "Erro ao buscar formas"
+          );
         }
 
-        const especie = await resposta.json();
+        const especie =
+          await resposta.json();
 
-        const variedades = especie.varieties.filter(
-          ({ pokemon: variedade }) => {
-            const nome = variedade.name;
+        const variedades =
+          especie.varieties.filter(
+            ({ pokemon: variedade }) => {
+              const nome =
+                variedade.name;
 
-            if (
-              pokemon.id === 25 &&
-              nome.includes("-alola")
-            ) {
-              return false;
-            }
+              if (
+                pokemon.id === 25 &&
+                nome.includes("-alola")
+              ) {
+                return false;
+              }
 
-            return (
-              nome.includes("-mega") ||
-              nome.includes("-gmax") ||
-              nome.includes("-alola") ||
-              nome.includes("-galar") ||
-              nome.includes("-hisui")
-            );
-          }
-        );
-
-        const resultados = await Promise.all(
-          variedades.map(async (variedade) => {
-            try {
-              const respostaForma = await fetch(
-                variedade.pokemon.url
+              return (
+                nome.includes("-mega") ||
+                nome.includes("-gmax") ||
+                nome.includes("-alola") ||
+                nome.includes("-galar") ||
+                nome.includes("-hisui")
               );
-
-              if (!respostaForma.ok) return null;
-
-              const dados = await respostaForma.json();
-
-              return await prepararForma(dados);
-            } catch (erro) {
-              console.error(
-                "Erro ao carregar forma:",
-                erro
-              );
-
-              return null;
             }
-          })
-        );
+          );
+
+        const resultados =
+          await Promise.all(
+            variedades.map(
+              async (variedade) => {
+                try {
+                  const respostaForma =
+                    await fetch(
+                      variedade.pokemon.url
+                    );
+
+                  if (!respostaForma.ok) {
+                    return null;
+                  }
+
+                  const dados =
+                    await respostaForma.json();
+
+                  return await prepararForma(
+                    dados
+                  );
+                } catch (erro) {
+                  console.error(
+                    "Erro ao carregar forma:",
+                    erro
+                  );
+
+                  return null;
+                }
+              }
+            )
+          );
 
         const formas = resultados.filter(
-          (forma) => forma && forma.imagemNormalForma
+          (forma) =>
+            forma &&
+            forma.imagemNormalForma
         );
 
         if (!ativo) return;
 
         setMegas(
           formas.filter(
-            (forma) => forma.categoriaForma === "mega"
+            (forma) =>
+              forma.categoriaForma ===
+              "mega"
           )
         );
 
         setGigantamax(
           formas.filter(
             (forma) =>
-              forma.categoriaForma === "gigantamax"
+              forma.categoriaForma ===
+              "gigantamax"
           )
         );
 
         setRegionais(
           formas.filter((forma) =>
-            ["alola", "galar", "hisui"].includes(
+            [
+              "alola",
+              "galar",
+              "hisui",
+            ].includes(
               forma.categoriaForma
             )
           )
         );
       } catch (erro) {
-        console.error("Erro ao buscar formas:", erro);
+        console.error(
+          "Erro ao buscar formas:",
+          erro
+        );
 
         if (ativo) {
           setMegas([]);
@@ -908,7 +990,8 @@ export default function App() {
   useEffect(() => {
     if (!pokemon) return;
 
-    const configuracoes = formasEspeciais[pokemon.id];
+    const configuracoes =
+      formasEspeciais[pokemon.id];
 
     if (!configuracoes) {
       setFormasTipo([]);
@@ -923,51 +1006,67 @@ export default function App() {
       setCarregandoFormasTipo(true);
 
       try {
-        const resultados = await Promise.all(
-          configuracoes.map(async (configuracao) => {
-            try {
-              let dados;
+        const resultados =
+          await Promise.all(
+            configuracoes.map(
+              async (configuracao) => {
+                try {
+                  let dados;
 
-              if (configuracao.api === pokemon.name) {
-                dados = pokemon;
-              } else {
-                const resposta = await fetch(
-                  `${API}/pokemon/${configuracao.api}`
-                );
+                  if (
+                    configuracao.api ===
+                    pokemon.name
+                  ) {
+                    dados = pokemon;
+                  } else {
+                    const resposta =
+                      await fetch(
+                        `${API}/pokemon/${configuracao.api}`
+                      );
 
-                if (!resposta.ok) return null;
+                    if (!resposta.ok) {
+                      return null;
+                    }
 
-                dados = await resposta.json();
-              }
+                    dados =
+                      await resposta.json();
+                  }
 
-              const preparado = dados.imagemNormalForma
-                ? dados
-                : await prepararPokemon(
-                    dados,
-                    jogosNormais
+                  const preparado =
+                    dados.imagemNormalForma
+                      ? dados
+                      : await prepararPokemon(
+                          dados,
+                          jogosNormais
+                        );
+
+                  return {
+                    ...preparado,
+                    nomeBotao:
+                      configuracao.nome,
+                    emojiBotao:
+                      configuracao.emoji,
+                    categoriaForma:
+                      "mudanca-tipo",
+                  };
+                } catch (erro) {
+                  console.error(
+                    "Erro ao carregar forma:",
+                    configuracao.api,
+                    erro
                   );
 
-              return {
-                ...preparado,
-                nomeBotao: configuracao.nome,
-                emojiBotao: configuracao.emoji,
-                categoriaForma: "mudanca-tipo",
-              };
-            } catch (erro) {
-              console.error(
-                "Erro ao carregar forma:",
-                configuracao.api,
-                erro
-              );
-
-              return null;
-            }
-          })
-        );
+                  return null;
+                }
+              }
+            )
+          );
 
         if (!ativo) return;
 
-        setFormasTipo(resultados.filter(Boolean));
+        setFormasTipo(
+          resultados.filter(Boolean)
+        );
       } finally {
         if (ativo) {
           setCarregandoFormasTipo(false);
@@ -983,7 +1082,7 @@ export default function App() {
   }, [pokemon]);
 
   // =====================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO E PESQUISA
   // =====================================
 
   function mudarPokemon(novoId) {
@@ -998,6 +1097,7 @@ export default function App() {
     setId(novoId);
     setShiny(false);
     setFormaSelecionada(null);
+
     setMostrarSugestoes(false);
     setSugestaoSelecionada(-1);
     setErroPesquisa("");
@@ -1025,7 +1125,8 @@ export default function App() {
       return;
     }
 
-    const texto = normalizarTexto(pesquisa);
+    const texto =
+      normalizarTexto(pesquisa);
 
     if (!texto) {
       setErroPesquisa(
@@ -1057,10 +1158,13 @@ export default function App() {
         return;
       }
 
-      const encontrado = listaPokemon.find(
-        (item) =>
-          normalizarTexto(item.nome) === texto
-      );
+      const encontrado =
+        listaPokemon.find(
+          (item) =>
+            normalizarTexto(
+              item.nome
+            ) === texto
+        );
 
       if (!encontrado) {
         setErroPesquisa(
@@ -1083,7 +1187,10 @@ export default function App() {
     ) {
       setFormaSelecionada(null);
 
-      if (shiny && !pokemon.imagemShinyForma) {
+      if (
+        shiny &&
+        !pokemon.imagemShinyForma
+      ) {
         setShiny(false);
       }
 
@@ -1106,12 +1213,13 @@ export default function App() {
   }
 
   // =====================================
-  // SETAS ESQUERDA / DIREITA
+  // SETAS ESQUERDA E DIREITA
   // =====================================
 
   useEffect(() => {
     function controlarTeclado(evento) {
-      const elemento = document.activeElement;
+      const elemento =
+        document.activeElement;
 
       const digitando =
         elemento?.tagName === "INPUT" ||
@@ -1168,10 +1276,11 @@ export default function App() {
       evento.preventDefault();
       setMostrarSugestoes(true);
 
-      setSugestaoSelecionada((atual) =>
-        atual >= sugestoes.length - 1
-          ? 0
-          : atual + 1
+      setSugestaoSelecionada(
+        (atual) =>
+          atual >= sugestoes.length - 1
+            ? 0
+            : atual + 1
       );
     }
 
@@ -1181,15 +1290,17 @@ export default function App() {
       evento.preventDefault();
       setMostrarSugestoes(true);
 
-      setSugestaoSelecionada((atual) =>
-        atual <= 0
-          ? sugestoes.length - 1
-          : atual - 1
+      setSugestaoSelecionada(
+        (atual) =>
+          atual <= 0
+            ? sugestoes.length - 1
+            : atual - 1
       );
     }
 
     if (evento.key === "Escape") {
       evento.preventDefault();
+
       setMostrarSugestoes(false);
       setSugestaoSelecionada(-1);
     }
@@ -1199,8 +1310,11 @@ export default function App() {
   // ESTILOS
   // =====================================
 
-  const pokemonAtual = formaSelecionada || pokemon;
-  const categoriaAtual = formaSelecionada?.categoriaForma;
+  const pokemonAtual =
+    formaSelecionada || pokemon;
+
+  const categoriaAtual =
+    formaSelecionada?.categoriaForma;
 
   const shinyDisponivel = Boolean(
     pokemonAtual?.imagemShinyForma
@@ -1341,57 +1455,71 @@ export default function App() {
                   bg-white rounded-xl shadow-2xl
                   border border-gray-200"
               >
-                {sugestoes.map((item, indice) => (
-                  <button
-                    id={`sugestao-${item.id}`}
-                    key={item.id}
-                    type="button"
-                    role="option"
-                    aria-selected={
-                      sugestaoSelecionada === indice
-                    }
-                    onClick={() =>
-                      selecionarSugestao(item)
-                    }
-                    onMouseEnter={() =>
-                      setSugestaoSelecionada(indice)
-                    }
-                    className={`w-full flex items-center gap-3
-                      px-3 py-2 text-left
-                      border-b border-gray-100
-                      last:border-b-0
-                      cursor-pointer transition-colors
-                      ${
-                        sugestaoSelecionada === indice
-                          ? "bg-red-100 ring-1 ring-inset ring-red-300"
-                          : "hover:bg-red-50"
-                      }`}
-                  >
-                    <ImagemSugestao
-                      id={item.id}
-                      nome={item.nome}
-                    />
+                {sugestoes.map(
+                  (item, indice) => (
+                    <button
+                      id={`sugestao-${item.id}`}
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={
+                        sugestaoSelecionada ===
+                        indice
+                      }
+                      onClick={() =>
+                        selecionarSugestao(
+                          item
+                        )
+                      }
+                      onMouseEnter={() =>
+                        setSugestaoSelecionada(
+                          indice
+                        )
+                      }
+                      className={`w-full flex items-center gap-3
+                        px-3 py-2 text-left
+                        border-b border-gray-100
+                        last:border-b-0
+                        cursor-pointer transition-colors
+                        ${
+                          sugestaoSelecionada ===
+                          indice
+                            ? "bg-red-100 ring-1 ring-inset ring-red-300"
+                            : "hover:bg-red-50"
+                        }`}
+                    >
+                      <ImagemSugestao
+                        id={item.id}
+                        nome={item.nome}
+                      />
 
-                    <span className="flex-1 min-w-0">
-                      <span className="block font-bold capitalize text-slate-800 truncate">
-                        {formatarNome(item.nome)}
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-bold capitalize text-slate-800 truncate">
+                          {formatarNome(
+                            item.nome
+                          )}
+                        </span>
+
+                        <span className="block text-xs text-gray-500">
+                          #
+                          {String(
+                            item.id
+                          ).padStart(4, "0")}
+                        </span>
                       </span>
 
-                      <span className="block text-xs text-gray-500">
-                        #{String(item.id).padStart(4, "0")}
-                      </span>
-                    </span>
-
-                    {sugestaoSelecionada === indice && (
-                      <span
-                        className="text-red-600 font-bold"
-                        aria-hidden="true"
-                      >
-                        ↵
-                      </span>
-                    )}
-                  </button>
-                ))}
+                      {sugestaoSelecionada ===
+                        indice && (
+                        <span
+                          className="text-red-600 font-bold"
+                          aria-hidden="true"
+                        >
+                          ↵
+                        </span>
+                      )}
+                    </button>
+                  )
+                )}
               </div>
             )}
 
@@ -1430,7 +1558,10 @@ export default function App() {
                   font-bold text-base sm:text-lg
                   px-5 py-2 rounded-full shadow-md"
               >
-                #{String(pokemon.id).padStart(4, "0")}
+                #
+                {String(
+                  pokemon.id
+                ).padStart(4, "0")}
               </span>
             </div>
 
@@ -1440,7 +1571,9 @@ export default function App() {
                 font-extrabold capitalize text-slate-800
                 break-words mb-2"
             >
-              {formatarNome(pokemonAtual.name)}
+              {formatarNome(
+                pokemonAtual.name
+              )}
             </h2>
 
             {/* CATEGORIA */}
@@ -1448,13 +1581,17 @@ export default function App() {
               <p className="text-center font-semibold text-sm mb-3 text-slate-600">
                 {categoriaAtual === "mega"
                   ? "🧬 Mega Evolução"
-                  : categoriaAtual === "gigantamax"
+                  : categoriaAtual ===
+                      "gigantamax"
                     ? "💥 Forma Gigantamax"
-                    : categoriaAtual === "alola"
+                    : categoriaAtual ===
+                        "alola"
                       ? "🌴 Forma de Alola"
-                      : categoriaAtual === "galar"
+                      : categoriaAtual ===
+                          "galar"
                         ? "🏰 Forma de Galar"
-                        : categoriaAtual === "hisui"
+                        : categoriaAtual ===
+                            "hisui"
                           ? "🏔️ Forma de Hisui"
                           : descricaoFormaTipo}
               </p>
@@ -1462,34 +1599,47 @@ export default function App() {
 
             {/* TIPOS */}
             <div className="flex flex-wrap justify-center gap-2 mb-6">
-              {pokemonAtual.types.map((tipo) => {
-                const nomeTipo = tipo.type.name;
+              {pokemonAtual.types.map(
+                (tipo) => {
+                  const nomeTipo =
+                    tipo.type.name;
 
-                return (
-                  <span
-                    key={nomeTipo}
-                    style={{
-                      backgroundColor:
-                        coresTipos[nomeTipo] || "#64748B",
-                      color:
-                        tiposTextoEscuro.includes(nomeTipo)
-                          ? "#1F2937"
-                          : "#FFFFFF",
-                    }}
-                    className="px-4 py-2 rounded-full
-                      text-sm font-bold capitalize shadow-sm"
-                  >
-                    {nomeTipo}
-                  </span>
-                );
-              })}
+                  return (
+                    <span
+                      key={nomeTipo}
+                      style={{
+                        backgroundColor:
+                          coresTipos[
+                            nomeTipo
+                          ] ||
+                          "#64748B",
+
+                        color:
+                          tiposTextoEscuro.includes(
+                            nomeTipo
+                          )
+                            ? "#1F2937"
+                            : "#FFFFFF",
+                      }}
+                      className="px-4 py-2 rounded-full
+                        text-sm font-bold capitalize shadow-sm"
+                    >
+                      {nomeTipo}
+                    </span>
+                  );
+                }
+              )}
             </div>
 
             {/* SHINY */}
             <button
               type="button"
-              onClick={() => setShiny(!shiny)}
-              disabled={!shinyDisponivel}
+              onClick={() =>
+                setShiny(!shiny)
+              }
+              disabled={
+                !shinyDisponivel
+              }
               className={`${estiloBotao} mb-4 ${
                 !shinyDisponivel
                   ? "bg-gray-300 text-gray-500"
@@ -1510,7 +1660,9 @@ export default function App() {
               {formaSelecionada && (
                 <button
                   type="button"
-                  onClick={voltarNormal}
+                  onClick={
+                    voltarNormal
+                  }
                   className={`${estiloBotao} mb-3
                     bg-gray-600 hover:bg-gray-700
                     text-white`}
@@ -1537,31 +1689,45 @@ export default function App() {
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {formasTipo.map((forma) => {
-                      const selecionada =
-                        pokemonAtual.id === forma.id &&
-                        pokemonAtual.name === forma.name;
+                    {formasTipo.map(
+                      (forma) => {
+                        const selecionada =
+                          pokemonAtual.id ===
+                            forma.id &&
+                          pokemonAtual.name ===
+                            forma.name;
 
-                      return (
-                        <button
-                          key={forma.name}
-                          type="button"
-                          onClick={() =>
-                            selecionarForma(forma)
-                          }
-                          disabled={selecionada}
-                          className={`${estiloBotao}
-                            ${
+                        return (
+                          <button
+                            key={
+                              forma.name
+                            }
+                            type="button"
+                            onClick={() =>
+                              selecionarForma(
+                                forma
+                              )
+                            }
+                            disabled={
                               selecionada
-                                ? "bg-teal-200 text-teal-900"
-                                : "bg-teal-600 hover:bg-teal-700 text-white"
-                            }`}
-                        >
-                          {forma.emojiBotao}{" "}
-                          {forma.nomeBotao}
-                        </button>
-                      );
-                    })}
+                            }
+                            className={`${estiloBotao}
+                              ${
+                                selecionada
+                                  ? "bg-teal-200 text-teal-900"
+                                  : "bg-teal-600 hover:bg-teal-700 text-white"
+                              }`}
+                          >
+                            {
+                              forma.emojiBotao
+                            }{" "}
+                            {
+                              forma.nomeBotao
+                            }
+                          </button>
+                        );
+                      }
+                    )}
                   </div>
 
                   <p className="text-xs text-gray-500 mt-3 text-center">
@@ -1582,93 +1748,131 @@ export default function App() {
 
               {!carregandoFormas &&
                 (megas.length > 0 ||
-                  gigantamax.length > 0 ||
-                  regionais.length > 0) && (
+                  gigantamax.length >
+                    0 ||
+                  regionais.length >
+                    0) && (
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-3">
                     Formas disponíveis
                   </h3>
                 )}
 
-              {/* MEGAS */}
+              {/* MEGA EVOLUÇÕES */}
               {!carregandoFormas &&
                 megas.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    {megas.map((mega) => (
-                      <button
-                        key={mega.id}
-                        type="button"
-                        onClick={() =>
-                          selecionarForma(mega)
-                        }
-                        disabled={
-                          formaSelecionada?.id === mega.id
-                        }
-                        className={`${estiloBotao}
-                          bg-purple-600 hover:bg-purple-700
-                          text-white`}
-                      >
-                        🧬 {formatarNome(mega.name)}
-                      </button>
-                    ))}
+                    {megas.map(
+                      (mega) => (
+                        <button
+                          key={
+                            mega.id
+                          }
+                          type="button"
+                          onClick={() =>
+                            selecionarForma(
+                              mega
+                            )
+                          }
+                          disabled={
+                            formaSelecionada?.id ===
+                            mega.id
+                          }
+                          className={`${estiloBotao}
+                            bg-purple-600 hover:bg-purple-700
+                            text-white`}
+                        >
+                          🧬{" "}
+                          {formatarNome(
+                            mega.name
+                          )}
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
 
               {/* GIGANTAMAX */}
               {!carregandoFormas &&
-                gigantamax.length > 0 && (
+                gigantamax.length >
+                  0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    {gigantamax.map((gmax) => (
-                      <button
-                        key={gmax.id}
-                        type="button"
-                        onClick={() =>
-                          selecionarForma(gmax)
-                        }
-                        disabled={
-                          formaSelecionada?.id === gmax.id
-                        }
-                        className={`${estiloBotao}
-                          bg-pink-600 hover:bg-pink-700
-                          text-white`}
-                      >
-                        💥 {formatarNome(gmax.name)}
-                      </button>
-                    ))}
+                    {gigantamax.map(
+                      (gmax) => (
+                        <button
+                          key={
+                            gmax.id
+                          }
+                          type="button"
+                          onClick={() =>
+                            selecionarForma(
+                              gmax
+                            )
+                          }
+                          disabled={
+                            formaSelecionada?.id ===
+                            gmax.id
+                          }
+                          className={`${estiloBotao}
+                            bg-pink-600 hover:bg-pink-700
+                            text-white`}
+                        >
+                          💥{" "}
+                          {formatarNome(
+                            gmax.name
+                          )}
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
 
-              {/* REGIONAIS */}
+              {/* FORMAS REGIONAIS */}
               {!carregandoFormas &&
-                regionais.length > 0 && (
+                regionais.length >
+                  0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {regionais.map((regional) => (
-                      <button
-                        key={regional.id}
-                        type="button"
-                        onClick={() =>
-                          selecionarForma(regional)
-                        }
-                        disabled={
-                          formaSelecionada?.id === regional.id
-                        }
-                        className={`${estiloBotao}
-                          bg-green-600 hover:bg-green-700
-                          text-white`}
-                      >
-                        {regional.categoriaForma === "alola"
-                          ? "🌴 "
-                          : regional.categoriaForma === "galar"
-                            ? "🏰 "
-                            : "🏔️ "}
-                        {formatarNome(regional.name)}
-                      </button>
-                    ))}
+                    {regionais.map(
+                      (regional) => (
+                        <button
+                          key={
+                            regional.id
+                          }
+                          type="button"
+                          onClick={() =>
+                            selecionarForma(
+                              regional
+                            )
+                          }
+                          disabled={
+                            formaSelecionada?.id ===
+                            regional.id
+                          }
+                          className={`${estiloBotao}
+                            bg-green-600 hover:bg-green-700
+                            text-white`}
+                        >
+                          {regional.categoriaForma ===
+                          "alola"
+                            ? "🌴 "
+                            : regional.categoriaForma ===
+                                "galar"
+                              ? "🏰 "
+                              : "🏔️ "}
+
+                          {formatarNome(
+                            regional.name
+                          )}
+                        </button>
+                      )
+                    )}
                   </div>
                 )}
             </div>
 
             {/* ESTATÍSTICAS */}
-            <EstatisticasPokemon pokemon={pokemonAtual} />
+            <EstatisticasPokemon
+              pokemon={pokemonAtual}
+            />
           </>
         ) : (
           <p
@@ -1687,7 +1891,9 @@ export default function App() {
         >
           <button
             type="button"
-            onClick={() => mudarPokemon(id - 1)}
+            onClick={() =>
+              mudarPokemon(id - 1)
+            }
             disabled={id <= 1}
             className={`${estiloBotao}
               bg-gray-200 hover:bg-gray-300
@@ -1698,8 +1904,12 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => mudarPokemon(id + 1)}
-            disabled={id >= TOTAL_POKEMON}
+            onClick={() =>
+              mudarPokemon(id + 1)
+            }
+            disabled={
+              id >= TOTAL_POKEMON
+            }
             className={`${estiloBotao}
               bg-blue-500 hover:bg-blue-600
               text-white`}
