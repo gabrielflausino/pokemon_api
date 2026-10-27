@@ -73,6 +73,84 @@ const configuracaoStats = {
 };
 
 // =====================================
+// FORMAS QUE ALTERAM OS TIPOS
+// =====================================
+
+const formasEspeciais = {
+  // CASTFORM
+  351: [
+    {
+      nome: "Normal Form",
+      api: "castform",
+      emoji: "☁️",
+    },
+    {
+      nome: "Sunny Form",
+      api: "castform-sunny",
+      emoji: "☀️",
+    },
+    {
+      nome: "Rainy Form",
+      api: "castform-rainy",
+      emoji: "🌧️",
+    },
+    {
+      nome: "Snowy Form",
+      api: "castform-snowy",
+      emoji: "❄️",
+    },
+  ],
+
+  // ORICORIO
+  741: [
+    {
+      nome: "Baile Style",
+      api: "oricorio-baile",
+      emoji: "🔥",
+    },
+    {
+      nome: "Pom-Pom Style",
+      api: "oricorio-pom-pom",
+      emoji: "⚡",
+    },
+    {
+      nome: "Pa'u Style",
+      api: "oricorio-pau",
+      emoji: "🔮",
+    },
+    {
+      nome: "Sensu Style",
+      api: "oricorio-sensu",
+      emoji: "👻",
+    },
+  ],
+
+  // OGERPON
+  1017: [
+    {
+      nome: "Teal Mask",
+      api: "ogerpon",
+      emoji: "🌿",
+    },
+    {
+      nome: "Wellspring Mask",
+      api: "ogerpon-wellspring-mask",
+      emoji: "💧",
+    },
+    {
+      nome: "Hearthflame Mask",
+      api: "ogerpon-hearthflame-mask",
+      emoji: "🔥",
+    },
+    {
+      nome: "Cornerstone Mask",
+      api: "ogerpon-cornerstone-mask",
+      emoji: "🪨",
+    },
+  ],
+};
+
+// =====================================
 // FUNÇÕES AUXILIARES
 // =====================================
 
@@ -121,21 +199,18 @@ function imagensAlternativas(dados) {
   return {
     normal:
       dados.sprites?.other?.home?.front_default ||
-      dados.sprites?.other?.["official-artwork"]
-        ?.front_default ||
+      dados.sprites?.other?.["official-artwork"]?.front_default ||
       dados.sprites?.front_default ||
       null,
 
     shiny:
       dados.sprites?.other?.home?.front_shiny ||
-      dados.sprites?.other?.["official-artwork"]
-        ?.front_shiny ||
+      dados.sprites?.other?.["official-artwork"]?.front_shiny ||
       dados.sprites?.front_shiny ||
       null,
   };
 }
 
-// Verifica se a imagem realmente existe
 function verificarImagem(url, limite = 2500) {
   return new Promise((resolve) => {
     if (!url) {
@@ -158,13 +233,13 @@ function verificarImagem(url, limite = 2500) {
       resolve(resultado);
     };
 
-    const tempo = setTimeout(() => {
-      finalizar(false);
-    }, limite);
+    const tempo = setTimeout(
+      () => finalizar(false),
+      limite
+    );
 
     imagem.onload = () => finalizar(true);
     imagem.onerror = () => finalizar(false);
-
     imagem.src = url;
   });
 }
@@ -186,7 +261,36 @@ async function procurarSprite(id, jogos, shiny = false) {
 }
 
 async function escolherImagem(dados, jogos, shiny = false) {
-  // 1. Procura nos jogos
+  // Formas alternativas usam primeiro seus próprios sprites.
+  // Isso evita mostrar a imagem da forma original.
+
+  const ehFormaAlternativa = dados.id > TOTAL_POKEMON;
+
+  if (ehFormaAlternativa) {
+    const candidatos = shiny
+      ? [
+          dados.sprites?.other?.home?.front_shiny,
+          dados.sprites?.other?.["official-artwork"]?.front_shiny,
+          dados.sprites?.front_shiny,
+        ]
+      : [
+          dados.sprites?.other?.home?.front_default,
+          dados.sprites?.other?.["official-artwork"]?.front_default,
+          dados.sprites?.front_default,
+        ];
+
+    for (const url of [...new Set(candidatos.filter(Boolean))]) {
+      if (await verificarImagem(url, 3500)) {
+        return url;
+      }
+    }
+
+    return null;
+  }
+
+  // 1. Legends Z-A > Scarlet/Violet >
+  // Legends Arceus > Sword/Shield
+
   const spriteJogo = await procurarSprite(
     dados.id,
     jogos,
@@ -196,6 +300,7 @@ async function escolherImagem(dados, jogos, shiny = false) {
   if (spriteJogo) return spriteJogo;
 
   // 2. Pokémon HOME
+
   const home = shiny
     ? dados.sprites?.other?.home?.front_shiny ||
       imagemHome(dados.id, true)
@@ -206,20 +311,19 @@ async function escolherImagem(dados, jogos, shiny = false) {
     return home;
   }
 
-  // 3. Últimas alternativas
+  // 3. Outras imagens disponíveis
+
   const alternativas = imagensAlternativas(dados);
 
   const candidatos = shiny
     ? [
         alternativas.shiny,
-        dados.sprites?.other?.["official-artwork"]
-          ?.front_shiny,
+        dados.sprites?.other?.["official-artwork"]?.front_shiny,
         dados.sprites?.front_shiny,
       ]
     : [
         alternativas.normal,
-        dados.sprites?.other?.["official-artwork"]
-          ?.front_default,
+        dados.sprites?.other?.["official-artwork"]?.front_default,
         dados.sprites?.front_default,
       ];
 
@@ -267,7 +371,7 @@ async function prepararForma(dados) {
 }
 
 // =====================================
-// COMPONENTE DE CARREGAMENTO
+// CARREGAMENTO
 // =====================================
 
 function Carregamento({
@@ -373,7 +477,7 @@ function ImagemPokemon({ pokemon, shiny }) {
 }
 
 // =====================================
-// IMAGENS HOME DAS SUGESTÕES
+// IMAGEM DAS SUGESTÕES
 // =====================================
 
 function ImagemSugestao({ id, nome }) {
@@ -433,7 +537,6 @@ function EstatisticasPokemon({ pokemon }) {
           if (!configuracao) return null;
 
           const valor = stat.base_stat;
-
           const porcentagem = Math.min(
             (valor / 255) * 100,
             100
@@ -511,7 +614,6 @@ export default function App() {
   const [mostrarSugestoes, setMostrarSugestoes] =
     useState(false);
 
-  // NOVO: índice selecionado com as setas
   const [sugestaoSelecionada, setSugestaoSelecionada] =
     useState(-1);
 
@@ -522,6 +624,7 @@ export default function App() {
   const [megas, setMegas] = useState([]);
   const [gigantamax, setGigantamax] = useState([]);
   const [regionais, setRegionais] = useState([]);
+  const [formasTipo, setFormasTipo] = useState([]);
 
   const [formaSelecionada, setFormaSelecionada] =
     useState(null);
@@ -529,8 +632,11 @@ export default function App() {
   const [carregandoFormas, setCarregandoFormas] =
     useState(false);
 
+  const [carregandoFormasTipo, setCarregandoFormasTipo] =
+    useState(false);
+
   // =====================================
-  // CARREGAR NOMES PARA PESQUISA
+  // LISTA DE NOMES
   // =====================================
 
   useEffect(() => {
@@ -550,9 +656,7 @@ export default function App() {
         const dados = await resposta.json();
 
         const lista = dados.results.map((item) => {
-          const partes = item.url
-            .split("/")
-            .filter(Boolean);
+          const partes = item.url.split("/").filter(Boolean);
 
           return {
             id: Number(partes[partes.length - 1]),
@@ -578,7 +682,7 @@ export default function App() {
   }, []);
 
   // =====================================
-  // SUGESTÕES DE PESQUISA
+  // SUGESTÕES
   // =====================================
 
   const sugestoes = useMemo(() => {
@@ -605,16 +709,12 @@ export default function App() {
       .slice(0, 6);
   }, [pesquisa, listaPokemon]);
 
-  // =====================================
-  // ROLAGEM AUTOMÁTICA DAS SUGESTÕES
-  // =====================================
-
   useEffect(() => {
-    if (!mostrarSugestoes) return;
-    if (sugestaoSelecionada < 0) return;
+    if (!mostrarSugestoes || sugestaoSelecionada < 0) {
+      return;
+    }
 
     const lista = listaSugestoesRef.current;
-
     if (!lista) return;
 
     const item = lista.children[sugestaoSelecionada];
@@ -628,7 +728,7 @@ export default function App() {
   }, [sugestaoSelecionada, mostrarSugestoes]);
 
   // =====================================
-  // BUSCAR POKÉMON PRINCIPAL
+  // POKÉMON PRINCIPAL
   // =====================================
 
   useEffect(() => {
@@ -640,11 +740,10 @@ export default function App() {
 
       setPokemon(null);
       setFormaSelecionada(null);
-
       setMegas([]);
       setGigantamax([]);
       setRegionais([]);
-      setCarregandoFormas(false);
+      setFormasTipo([]);
 
       try {
         const resposta = await fetch(
@@ -688,7 +787,7 @@ export default function App() {
   }, [id]);
 
   // =====================================
-  // BUSCAR FORMAS ESPECIAIS
+  // MEGAS, GIGANTAMAX E REGIONAIS
   // =====================================
 
   useEffect(() => {
@@ -714,7 +813,6 @@ export default function App() {
           ({ pokemon: variedade }) => {
             const nome = variedade.name;
 
-            // Não mostrar Pikachu de Alola
             if (
               pokemon.id === 25 &&
               nome.includes("-alola")
@@ -804,7 +902,88 @@ export default function App() {
   }, [pokemon]);
 
   // =====================================
-  // NAVEGAÇÃO E PESQUISA
+  // CASTFORM, ORICORIO E OGERPON
+  // =====================================
+
+  useEffect(() => {
+    if (!pokemon) return;
+
+    const configuracoes = formasEspeciais[pokemon.id];
+
+    if (!configuracoes) {
+      setFormasTipo([]);
+      setCarregandoFormasTipo(false);
+      return;
+    }
+
+    let ativo = true;
+
+    async function carregarFormasTipo() {
+      setFormasTipo([]);
+      setCarregandoFormasTipo(true);
+
+      try {
+        const resultados = await Promise.all(
+          configuracoes.map(async (configuracao) => {
+            try {
+              let dados;
+
+              if (configuracao.api === pokemon.name) {
+                dados = pokemon;
+              } else {
+                const resposta = await fetch(
+                  `${API}/pokemon/${configuracao.api}`
+                );
+
+                if (!resposta.ok) return null;
+
+                dados = await resposta.json();
+              }
+
+              const preparado = dados.imagemNormalForma
+                ? dados
+                : await prepararPokemon(
+                    dados,
+                    jogosNormais
+                  );
+
+              return {
+                ...preparado,
+                nomeBotao: configuracao.nome,
+                emojiBotao: configuracao.emoji,
+                categoriaForma: "mudanca-tipo",
+              };
+            } catch (erro) {
+              console.error(
+                "Erro ao carregar forma:",
+                configuracao.api,
+                erro
+              );
+
+              return null;
+            }
+          })
+        );
+
+        if (!ativo) return;
+
+        setFormasTipo(resultados.filter(Boolean));
+      } finally {
+        if (ativo) {
+          setCarregandoFormasTipo(false);
+        }
+      }
+    }
+
+    carregarFormasTipo();
+
+    return () => {
+      ativo = false;
+    };
+  }, [pokemon]);
+
+  // =====================================
+  // NAVEGAÇÃO
   // =====================================
 
   function mudarPokemon(novoId) {
@@ -819,7 +998,6 @@ export default function App() {
     setId(novoId);
     setShiny(false);
     setFormaSelecionada(null);
-
     setMostrarSugestoes(false);
     setSugestaoSelecionada(-1);
     setErroPesquisa("");
@@ -836,7 +1014,6 @@ export default function App() {
   function pesquisarPokemon(evento) {
     evento.preventDefault();
 
-    // Enter escolhe a sugestão destacada
     if (
       mostrarSugestoes &&
       sugestaoSelecionada >= 0 &&
@@ -900,6 +1077,19 @@ export default function App() {
   }
 
   function selecionarForma(forma) {
+    if (
+      forma.id === pokemon?.id &&
+      forma.name === pokemon?.name
+    ) {
+      setFormaSelecionada(null);
+
+      if (shiny && !pokemon.imagemShinyForma) {
+        setShiny(false);
+      }
+
+      return;
+    }
+
     setFormaSelecionada(forma);
 
     if (!forma.imagemShinyForma) {
@@ -916,12 +1106,11 @@ export default function App() {
   }
 
   // =====================================
-  // NOVO: SETAS ESQUERDA E DIREITA
+  // SETAS ESQUERDA / DIREITA
   // =====================================
 
   useEffect(() => {
     function controlarTeclado(evento) {
-      // Não interferir na digitação
       const elemento = document.activeElement;
 
       const digitando =
@@ -932,7 +1121,6 @@ export default function App() {
 
       if (digitando) return;
 
-      // Ignorar combinações como Ctrl + seta
       if (
         evento.ctrlKey ||
         evento.altKey ||
@@ -970,7 +1158,7 @@ export default function App() {
   }, [id]);
 
   // =====================================
-  // NOVO: SETAS NA PESQUISA
+  // SETAS NA PESQUISA
   // =====================================
 
   function controlarSetasPesquisa(evento) {
@@ -1002,13 +1190,9 @@ export default function App() {
 
     if (evento.key === "Escape") {
       evento.preventDefault();
-
       setMostrarSugestoes(false);
       setSugestaoSelecionada(-1);
     }
-
-    // O Enter é tratado pelo formulário
-    // para evitar duas seleções.
   }
 
   // =====================================
@@ -1016,9 +1200,7 @@ export default function App() {
   // =====================================
 
   const pokemonAtual = formaSelecionada || pokemon;
-
-  const categoriaAtual =
-    formaSelecionada?.categoriaForma;
+  const categoriaAtual = formaSelecionada?.categoriaForma;
 
   const shinyDisponivel = Boolean(
     pokemonAtual?.imagemShinyForma
@@ -1030,9 +1212,11 @@ export default function App() {
       ? "border-purple-500"
       : categoriaAtual === "gigantamax"
         ? "border-pink-500"
-        : categoriaAtual
-          ? "border-green-500"
-          : "border-transparent";
+        : categoriaAtual === "mudanca-tipo"
+          ? "border-teal-500"
+          : categoriaAtual
+            ? "border-green-500"
+            : "border-transparent";
 
   const fundoImagem = shiny
     ? "bg-yellow-100"
@@ -1040,15 +1224,31 @@ export default function App() {
       ? "bg-purple-100"
       : categoriaAtual === "gigantamax"
         ? "bg-pink-100"
-        : categoriaAtual
-          ? "bg-green-100"
-          : "bg-slate-100";
+        : categoriaAtual === "mudanca-tipo"
+          ? "bg-teal-100"
+          : categoriaAtual
+            ? "bg-green-100"
+            : "bg-slate-100";
 
   const estiloBotao =
     "w-full min-h-12 px-3 py-3 rounded-xl font-bold " +
     "text-sm sm:text-base transition-colors " +
     "cursor-pointer disabled:opacity-40 " +
     "disabled:cursor-not-allowed";
+
+  const tituloFormasTipo =
+    id === 351
+      ? "🌦️ Climas do Castform"
+      : id === 741
+        ? "🎭 Estilos do Oricorio"
+        : "🎭 Máscaras do Ogerpon";
+
+  const descricaoFormaTipo =
+    id === 351
+      ? "🌦️ Forma climática do Castform"
+      : id === 741
+        ? "🎭 Estilo do Oricorio"
+        : "🎭 Máscara do Ogerpon";
 
   // =====================================
   // INTERFACE
@@ -1128,7 +1328,7 @@ export default function App() {
             </button>
           </div>
 
-          {/* SUGESTÕES COM NAVEGAÇÃO POR SETAS */}
+          {/* SUGESTÕES */}
           {mostrarSugestoes &&
             sugestoes.length > 0 && (
               <div
@@ -1254,7 +1454,9 @@ export default function App() {
                       ? "🌴 Forma de Alola"
                       : categoriaAtual === "galar"
                         ? "🏰 Forma de Galar"
-                        : "🏔️ Forma de Hisui"}
+                        : categoriaAtual === "hisui"
+                          ? "🏔️ Forma de Hisui"
+                          : descricaoFormaTipo}
               </p>
             )}
 
@@ -1268,12 +1470,9 @@ export default function App() {
                     key={nomeTipo}
                     style={{
                       backgroundColor:
-                        coresTipos[nomeTipo] ||
-                        "#64748B",
+                        coresTipos[nomeTipo] || "#64748B",
                       color:
-                        tiposTextoEscuro.includes(
-                          nomeTipo
-                        )
+                        tiposTextoEscuro.includes(nomeTipo)
                           ? "#1F2937"
                           : "#FFFFFF",
                     }}
@@ -1306,29 +1505,83 @@ export default function App() {
                   : "✨ Versão Shiny"}
             </button>
 
-            {/* FORMAS ESPECIAIS */}
-            {carregandoFormas ? (
-              <p
-                role="status"
-                className="text-center text-sm text-gray-500 mb-5"
-              >
-                Procurando formas alternativas...
-              </p>
-            ) : (
-              <div className="mb-6">
-                {formaSelecionada && (
-                  <button
-                    type="button"
-                    onClick={voltarNormal}
-                    className={`${estiloBotao} mb-3
-                      bg-gray-600 hover:bg-gray-700
-                      text-white`}
-                  >
-                    ↩️ Voltar à forma original
-                  </button>
-                )}
+            {/* FORMAS */}
+            <div className="mb-6">
+              {formaSelecionada && (
+                <button
+                  type="button"
+                  onClick={voltarNormal}
+                  className={`${estiloBotao} mb-3
+                    bg-gray-600 hover:bg-gray-700
+                    text-white`}
+                >
+                  ↩️ Voltar à forma original
+                </button>
+              )}
 
-                {(megas.length > 0 ||
+              {/* CASTFORM / ORICORIO / OGERPON */}
+              {(formasTipo.length > 0 ||
+                carregandoFormasTipo) && (
+                <div className="mb-5">
+                  <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">
+                    {tituloFormasTipo}
+                  </h3>
+
+                  {carregandoFormasTipo && (
+                    <p
+                      role="status"
+                      className="text-center text-sm text-gray-500 mb-3"
+                    >
+                      Carregando formas...
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {formasTipo.map((forma) => {
+                      const selecionada =
+                        pokemonAtual.id === forma.id &&
+                        pokemonAtual.name === forma.name;
+
+                      return (
+                        <button
+                          key={forma.name}
+                          type="button"
+                          onClick={() =>
+                            selecionarForma(forma)
+                          }
+                          disabled={selecionada}
+                          className={`${estiloBotao}
+                            ${
+                              selecionada
+                                ? "bg-teal-200 text-teal-900"
+                                : "bg-teal-600 hover:bg-teal-700 text-white"
+                            }`}
+                        >
+                          {forma.emojiBotao}{" "}
+                          {forma.nomeBotao}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-xs text-gray-500 mt-3 text-center">
+                    Selecione uma forma para visualizar
+                    seus tipos, aparência e atributos.
+                  </p>
+                </div>
+              )}
+
+              {carregandoFormas && (
+                <p
+                  role="status"
+                  className="text-center text-sm text-gray-500 mb-4"
+                >
+                  Procurando formas alternativas...
+                </p>
+              )}
+
+              {!carregandoFormas &&
+                (megas.length > 0 ||
                   gigantamax.length > 0 ||
                   regionais.length > 0) && (
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-3">
@@ -1336,8 +1589,9 @@ export default function App() {
                   </h3>
                 )}
 
-                {/* MEGAS */}
-                {megas.length > 0 && (
+              {/* MEGAS */}
+              {!carregandoFormas &&
+                megas.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {megas.map((mega) => (
                       <button
@@ -1347,8 +1601,7 @@ export default function App() {
                           selecionarForma(mega)
                         }
                         disabled={
-                          formaSelecionada?.id ===
-                          mega.id
+                          formaSelecionada?.id === mega.id
                         }
                         className={`${estiloBotao}
                           bg-purple-600 hover:bg-purple-700
@@ -1360,8 +1613,9 @@ export default function App() {
                   </div>
                 )}
 
-                {/* GIGANTAMAX */}
-                {gigantamax.length > 0 && (
+              {/* GIGANTAMAX */}
+              {!carregandoFormas &&
+                gigantamax.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {gigantamax.map((gmax) => (
                       <button
@@ -1371,8 +1625,7 @@ export default function App() {
                           selecionarForma(gmax)
                         }
                         disabled={
-                          formaSelecionada?.id ===
-                          gmax.id
+                          formaSelecionada?.id === gmax.id
                         }
                         className={`${estiloBotao}
                           bg-pink-600 hover:bg-pink-700
@@ -1384,8 +1637,9 @@ export default function App() {
                   </div>
                 )}
 
-                {/* REGIONAIS */}
-                {regionais.length > 0 && (
+              {/* REGIONAIS */}
+              {!carregandoFormas &&
+                regionais.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {regionais.map((regional) => (
                       <button
@@ -1395,18 +1649,15 @@ export default function App() {
                           selecionarForma(regional)
                         }
                         disabled={
-                          formaSelecionada?.id ===
-                          regional.id
+                          formaSelecionada?.id === regional.id
                         }
                         className={`${estiloBotao}
                           bg-green-600 hover:bg-green-700
                           text-white`}
                       >
-                        {regional.categoriaForma ===
-                        "alola"
+                        {regional.categoriaForma === "alola"
                           ? "🌴 "
-                          : regional.categoriaForma ===
-                              "galar"
+                          : regional.categoriaForma === "galar"
                             ? "🏰 "
                             : "🏔️ "}
                         {formatarNome(regional.name)}
@@ -1414,8 +1665,7 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
 
             {/* ESTATÍSTICAS */}
             <EstatisticasPokemon pokemon={pokemonAtual} />
