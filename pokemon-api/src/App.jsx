@@ -1,7 +1,32 @@
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-// Cores dos tipos de Pokémon
+// ========================================
+// CONFIGURAÇÕES
+// ========================================
+
+const TOTAL_POKEMON = 1025;
+
+const API = "https://pokeapi.co/api/v2";
+
+const SPRITES =
+  "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions";
+
+const jogosNormais = [
+  "generation-ix/legends-za",
+  "generation-ix/scarlet-violet",
+  "generation-viii/legends-arceus",
+  "generation-viii/sword-shield",
+];
+
+const jogosFormas = {
+  mega: "generation-ix/legends-za",
+  gigantamax: "generation-viii/sword-shield",
+  alola: "generation-vii/ultra-sun-ultra-moon",
+  galar: "generation-viii/sword-shield",
+  hisui: "generation-viii/legends-arceus",
+};
+
 const coresTipos = {
   normal: "#A8A77A",
   fire: "#EE8130",
@@ -33,25 +58,9 @@ const tiposTextoEscuro = [
   "steel",
 ];
 
-const urlSprites =
-  "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions";
-
-// Prioridade dos jogos para Pokémon normais
-const jogosNormais = [
-  "generation-ix/legends-za",
-  "generation-ix/scarlet-violet",
-  "generation-viii/legends-arceus",
-  "generation-viii/sword-shield",
-];
-
-// Jogos específicos para formas especiais
-const jogosFormas = {
-  mega: "generation-ix/legends-za",
-  gigantamax: "generation-viii/sword-shield",
-  alola: "generation-vii/ultra-sun-ultra-moon",
-  galar: "generation-viii/sword-shield",
-  hisui: "generation-viii/legends-arceus",
-};
+// ========================================
+// FUNÇÕES DE IMAGEM
+// ========================================
 
 function identificarForma(nome) {
   if (nome.includes("-mega")) return "mega";
@@ -63,71 +72,110 @@ function identificarForma(nome) {
   return "normal";
 }
 
-function criarUrlSprite(id, jogo, shiny = false) {
-  const pastaShiny = shiny ? "shiny/" : "";
+function urlSprite(id, jogo, shiny = false) {
+  const pasta = shiny ? "shiny/" : "";
 
   const extensao = jogo.includes("ultra-sun-ultra-moon")
     ? "gif"
     : "webp";
 
-  return `${urlSprites}/${jogo}/${pastaShiny}${id}.${extensao}`;
-}
-
-// Verifica se o navegador consegue carregar a imagem
-function verificarImagem(url) {
-  return new Promise((resolve) => {
-    const imagem = new Image();
-
-    imagem.onload = () => resolve(true);
-    imagem.onerror = () => resolve(false);
-
-    imagem.src = url;
-  });
+  return `${SPRITES}/${jogo}/${pasta}${id}.${extensao}`;
 }
 
 function imagensAlternativas(dados) {
   return {
     normal:
-      dados.sprites?.other?.["official-artwork"]?.front_default ||
+      dados.sprites?.other?.["official-artwork"]
+        ?.front_default ||
       dados.sprites?.other?.home?.front_default ||
       dados.sprites?.front_default ||
       null,
 
     shiny:
-      dados.sprites?.other?.["official-artwork"]?.front_shiny ||
+      dados.sprites?.other?.["official-artwork"]
+        ?.front_shiny ||
       dados.sprites?.other?.home?.front_shiny ||
       dados.sprites?.front_shiny ||
       null,
   };
 }
 
-// Testa os jogos na ordem de prioridade
+// Espera a imagem carregar, mas com limite de tempo.
+// Assim nenhuma imagem fica travada infinitamente.
+function verificarImagem(url, limite = 3500) {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve(false);
+      return;
+    }
+
+    const imagem = new Image();
+
+    let terminou = false;
+
+    const finalizar = (resultado) => {
+      if (terminou) return;
+
+      terminou = true;
+      clearTimeout(tempo);
+
+      imagem.onload = null;
+      imagem.onerror = null;
+
+      resolve(resultado);
+    };
+
+    const tempo = setTimeout(() => {
+      finalizar(false);
+    }, limite);
+
+    imagem.onload = () => finalizar(true);
+    imagem.onerror = () => finalizar(false);
+
+    imagem.src = url;
+  });
+}
+
+// Procura os sprites na ordem de prioridade.
 async function procurarSprite(id, jogos, shiny = false) {
   for (const jogo of jogos) {
-    const url = criarUrlSprite(id, jogo, shiny);
+    const url = urlSprite(id, jogo, shiny);
+
     const existe = await verificarImagem(url);
 
-    if (existe) return url;
+    if (existe) {
+      return url;
+    }
   }
 
   return null;
 }
 
+// Prepara as imagens normais e Shiny.
 async function prepararPokemon(dados, jogos) {
-  const [normalEncontrada, shinyEncontrada] =
-    await Promise.all([
-      procurarSprite(dados.id, jogos, false),
-      procurarSprite(dados.id, jogos, true),
-    ]);
-
   const alternativas = imagensAlternativas(dados);
+
+  // Procura primeiro a imagem normal.
+  const imagemNormal = await procurarSprite(
+    dados.id,
+    jogos,
+    false
+  );
+
+  // Procura também a Shiny.
+  const imagemShiny = await procurarSprite(
+    dados.id,
+    jogos,
+    true
+  );
 
   return {
     ...dados,
     imagemNormalForma:
-      normalEncontrada || alternativas.normal,
+      imagemNormal || alternativas.normal,
+
     imagemShinyForma:
-      shinyEncontrada || alternativas.shiny,
+      imagemShiny || alternativas.shiny,
   };
 }
 
@@ -135,25 +183,62 @@ async function prepararForma(dados) {
   const categoria = identificarForma(dados.name);
   const jogo = jogosFormas[categoria];
 
-  const resultado = await prepararPokemon(
+  const preparado = await prepararPokemon(
     dados,
     jogo ? [jogo] : jogosNormais
   );
 
   return {
-    ...resultado,
+    ...preparado,
     categoriaForma: categoria,
   };
 }
 
-// Componente da imagem com fallback
+// ========================================
+// COMPONENTE DE CARREGAMENTO
+// ========================================
+
+function Carregamento({
+  mensagem = "Carregando Pokémon...",
+  pequeno = false,
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center ${
+        pequeno ? "py-6" : "py-16"
+      }`}
+      role="status"
+    >
+      <div
+        className={`rounded-full border-4
+          border-red-200 border-t-red-500
+          animate-spin ${
+            pequeno ? "w-9 h-9" : "w-12 h-12"
+          }`}
+        aria-hidden="true"
+      />
+
+      <p className="mt-4 text-gray-600 font-medium text-sm text-center">
+        {mensagem}
+      </p>
+    </div>
+  );
+}
+
+// ========================================
+// COMPONENTE DA IMAGEM
+// ========================================
+
+// O componente é recriado quando o Pokémon ou
+// a versão Shiny muda. Isso evita estados antigos
+// e imagens que ficam carregando sem parar.
+
 function ImagemPokemon({ pokemon, shiny }) {
   const alternativas = imagensAlternativas(pokemon);
 
-  const principal =
-    shiny && pokemon.imagemShinyForma
-      ? pokemon.imagemShinyForma
-      : pokemon.imagemNormalForma;
+  const principal = shiny
+    ? pokemon.imagemShinyForma
+    : pokemon.imagemNormalForma;
 
   const reserva = shiny
     ? alternativas.shiny
@@ -163,35 +248,98 @@ function ImagemPokemon({ pokemon, shiny }) {
     principal || reserva
   );
 
+  const [status, setStatus] = useState("carregando");
+
   useEffect(() => {
-    setUrlAtual(principal || reserva);
+    let ativo = true;
+
+    async function carregarImagem() {
+      setStatus("carregando");
+
+      const primeiraUrl = principal || reserva;
+
+      if (!primeiraUrl) {
+        if (ativo) {
+          setUrlAtual(null);
+          setStatus("erro");
+        }
+        return;
+      }
+
+      // Primeiro tenta a imagem selecionada.
+      const principalExiste = await verificarImagem(
+        primeiraUrl,
+        5000
+      );
+
+      if (!ativo) return;
+
+      if (principalExiste) {
+        setUrlAtual(primeiraUrl);
+        setStatus("pronto");
+        return;
+      }
+
+      // Se falhar, tenta a alternativa.
+      if (reserva && reserva !== primeiraUrl) {
+        const reservaExiste = await verificarImagem(
+          reserva,
+          5000
+        );
+
+        if (!ativo) return;
+
+        if (reservaExiste) {
+          setUrlAtual(reserva);
+          setStatus("pronto");
+          return;
+        }
+      }
+
+      setUrlAtual(null);
+      setStatus("erro");
+    }
+
+    carregarImagem();
+
+    return () => {
+      ativo = false;
+    };
   }, [principal, reserva]);
 
-  function tratarErro() {
-    if (urlAtual !== reserva && reserva) {
-      setUrlAtual(reserva);
-    } else {
-      setUrlAtual(null);
-    }
-  }
-
   return (
-    <div className="flex items-center justify-center w-full h-48 sm:h-56 md:h-64">
-      {urlAtual ? (
-        <img
-          src={urlAtual}
-          alt={`${pokemon.name} ${shiny ? "Shiny" : ""}`}
-          onError={tratarErro}
-          className="w-full h-full max-w-64 object-contain drop-shadow-md"
-        />
-      ) : (
+    <div className="relative flex items-center justify-center w-full h-48 sm:h-56 md:h-64">
+      {status === "carregando" && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className="w-10 h-10 rounded-full border-4 border-red-200 border-t-red-500 animate-spin"
+            role="status"
+            aria-label="Carregando imagem"
+          />
+        </div>
+      )}
+
+      {status === "erro" && (
         <p className="text-sm text-gray-500 text-center">
           Imagem indisponível
         </p>
       )}
+
+      {status === "pronto" && urlAtual && (
+        <img
+          src={urlAtual}
+          alt={`${pokemon.name}${shiny ? " Shiny" : ""}`}
+          className="w-full h-full max-w-64 object-contain drop-shadow-md"
+          onError={() => setStatus("erro")}
+        />
+      )}
     </div>
   );
 }
+
+// ========================================
+// APLICAÇÃO PRINCIPAL
+// ========================================
 
 export default function App() {
   const [id, setId] = useState(25);
@@ -216,22 +364,27 @@ export default function App() {
   const [carregandoFormas, setCarregandoFormas] =
     useState(false);
 
-  // Carrega o Pokémon principal
+  // ========================================
+  // BUSCAR POKÉMON
+  // ========================================
+
   useEffect(() => {
     let ativo = true;
 
     async function buscarPokemon() {
       setCarregando(true);
       setErroCarregamento("");
+
       setPokemon(null);
       setFormaSelecionada(null);
+
       setMegas([]);
       setGigantamax([]);
       setRegionais([]);
 
       try {
         const resposta = await fetch(
-          `https://pokeapi.co/api/v2/pokemon/${id}`
+          `${API}/pokemon/${id}`
         );
 
         if (!resposta.ok) {
@@ -240,21 +393,8 @@ export default function App() {
 
         const dados = await resposta.json();
 
-        // Exibe os dados primeiro para melhorar
-        // a velocidade percebida no celular
-        if (ativo) {
-          const alternativas = imagensAlternativas(dados);
-
-          setPokemon({
-            ...dados,
-            imagemNormalForma: alternativas.normal,
-            imagemShinyForma: alternativas.shiny,
-          });
-
-          setCarregando(false);
-        }
-
-        // Depois procura os sprites dos jogos
+        // Aguarda a seleção da imagem antes
+        // de mostrar o Pokémon na tela.
         const preparado = await prepararPokemon(
           dados,
           jogosNormais
@@ -286,7 +426,10 @@ export default function App() {
     };
   }, [id]);
 
-  // Busca as transformações
+  // ========================================
+  // BUSCAR FORMAS ESPECIAIS
+  // ========================================
+
   useEffect(() => {
     if (!pokemon) return;
 
@@ -396,8 +539,14 @@ export default function App() {
     };
   }, [pokemon?.id]);
 
+  // ========================================
+  // NAVEGAÇÃO
+  // ========================================
+
   function mudarPokemon(novoId) {
-    if (novoId < 1 || novoId > 1025) return;
+    if (novoId < 1 || novoId > TOTAL_POKEMON) {
+      return;
+    }
 
     setId(novoId);
     setShiny(false);
@@ -405,8 +554,8 @@ export default function App() {
     setErroPesquisa("");
   }
 
-  function pesquisarPokemon(e) {
-    e.preventDefault();
+  function pesquisarPokemon(evento) {
+    evento.preventDefault();
 
     const numero = Number(pesquisa);
 
@@ -414,10 +563,10 @@ export default function App() {
       pesquisa.trim() === "" ||
       !Number.isInteger(numero) ||
       numero < 1 ||
-      numero > 1025
+      numero > TOTAL_POKEMON
     ) {
       setErroPesquisa(
-        "Digite um número entre 1 e 1025."
+        `Digite um número entre 1 e ${TOTAL_POKEMON}.`
       );
       return;
     }
@@ -442,8 +591,14 @@ export default function App() {
     }
   }
 
+  // ========================================
+  // ESTILOS DINÂMICOS
+  // ========================================
+
   const pokemonAtual = formaSelecionada || pokemon;
-  const categoriaAtual = formaSelecionada?.categoriaForma;
+
+  const categoriaAtual =
+    formaSelecionada?.categoriaForma;
 
   const shinyDisponivel = Boolean(
     pokemonAtual?.imagemShinyForma
@@ -469,17 +624,18 @@ export default function App() {
           ? "bg-green-100"
           : "bg-slate-100";
 
-  // Estilo reutilizável dos botões
   const estiloBotao =
     "w-full min-h-12 px-3 py-3 rounded-xl font-bold " +
     "text-sm sm:text-base transition-colors " +
     "cursor-pointer disabled:opacity-40 " +
-    "disabled:cursor-not-allowed " +
-    "focus-visible:outline-2 focus-visible:outline-offset-2";
+    "disabled:cursor-not-allowed";
+
+  // ========================================
+  // INTERFACE
+  // ========================================
 
   return (
     <main className="min-h-screen w-full flex items-center justify-center px-3 py-5 sm:px-6 sm:py-10">
-
       <section
         className={`w-full max-w-md sm:max-w-lg mx-auto
           bg-white/90 backdrop-blur-md
@@ -489,8 +645,7 @@ export default function App() {
           transition-all duration-300
           ${bordaCard}`}
       >
-
-        {/* Cabeçalho */}
+        {/* CABEÇALHO */}
         <header className="text-center mb-5 sm:mb-7">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800">
             Pokédex
@@ -501,7 +656,7 @@ export default function App() {
           </p>
         </header>
 
-        {/* Pesquisa responsiva */}
+        {/* PESQUISA */}
         <form
           onSubmit={pesquisarPokemon}
           className="mb-5"
@@ -510,13 +665,13 @@ export default function App() {
             <input
               type="number"
               min="1"
-              max="1025"
+              max={TOTAL_POKEMON}
               inputMode="numeric"
               placeholder="Nº do Pokémon"
               aria-label="Número do Pokémon"
               value={pesquisa}
-              onChange={(e) =>
-                setPesquisa(e.target.value)
+              onChange={(evento) =>
+                setPesquisa(evento.target.value)
               }
               className="w-full min-w-0 h-12
                 border border-gray-300 rounded-xl
@@ -546,19 +701,12 @@ export default function App() {
           )}
         </form>
 
+        {/* CARREGAMENTO */}
         {carregando ? (
-          <div
-            className="py-16 text-center"
-            role="status"
-          >
-            <div className="w-10 h-10 mx-auto mb-4 border-4 border-red-200 border-t-red-500 rounded-full animate-spin" />
-            <p className="text-gray-600">
-              Carregando Pokémon...
-            </p>
-          </div>
+          <Carregamento />
         ) : pokemonAtual ? (
           <>
-            {/* Área da imagem */}
+            {/* IMAGEM */}
             <div
               className={`${fundoImagem}
                 rounded-2xl p-3 sm:p-5 mb-5
@@ -571,7 +719,7 @@ export default function App() {
               />
             </div>
 
-            {/* Número da Pokédex */}
+            {/* NÚMERO */}
             <div className="flex justify-center mb-3">
               <span
                 className="bg-red-600 text-white
@@ -582,7 +730,7 @@ export default function App() {
               </span>
             </div>
 
-            {/* Nome */}
+            {/* NOME */}
             <h2
               className="text-center text-2xl sm:text-3xl
                 font-extrabold capitalize text-slate-800
@@ -591,7 +739,7 @@ export default function App() {
               {pokemonAtual.name.replaceAll("-", " ")}
             </h2>
 
-            {/* Identificação da forma */}
+            {/* CATEGORIA DA FORMA */}
             {categoriaAtual && (
               <p
                 className={`text-center font-semibold
@@ -615,7 +763,7 @@ export default function App() {
               </p>
             )}
 
-            {/* Tipos */}
+            {/* TIPOS */}
             <div className="flex flex-wrap justify-center gap-2 mb-6">
               {pokemonAtual.types.map((tipo) => {
                 const nomeTipo = tipo.type.name;
@@ -645,7 +793,7 @@ export default function App() {
               })}
             </div>
 
-            {/* Botão Shiny */}
+            {/* SHINY */}
             <button
               type="button"
               onClick={() => setShiny(!shiny)}
@@ -665,7 +813,7 @@ export default function App() {
                   : "✨ Versão Shiny"}
             </button>
 
-            {/* Formas especiais */}
+            {/* FORMAS ESPECIAIS */}
             {carregandoFormas ? (
               <p
                 role="status"
@@ -698,7 +846,7 @@ export default function App() {
                   </h3>
                 )}
 
-                {/* Mega Evoluções */}
+                {/* MEGA EVOLUÇÕES */}
                 {megas.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {megas.map((mega) => (
@@ -721,7 +869,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Gigantamax */}
+                {/* GIGANTAMAX */}
                 {gigantamax.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {gigantamax.map((gmax) => (
@@ -744,7 +892,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Formas regionais */}
+                {/* FORMAS REGIONAIS */}
                 {regionais.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {regionais.map((regional) => (
@@ -784,7 +932,7 @@ export default function App() {
           </p>
         )}
 
-        {/* Navegação */}
+        {/* NAVEGAÇÃO */}
         <nav
           className="grid grid-cols-2 gap-2 sm:gap-3"
           aria-label="Navegação da Pokédex"
@@ -803,7 +951,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => mudarPokemon(id + 1)}
-            disabled={id >= 1025}
+            disabled={id >= TOTAL_POKEMON}
             className={`${estiloBotao}
               bg-blue-500 hover:bg-blue-600
               text-white`}
@@ -813,7 +961,7 @@ export default function App() {
         </nav>
 
         <p className="text-center text-xs text-gray-500 mt-5">
-          Pokémon #{id} de 1025
+          Pokémon #{id} de {TOTAL_POKEMON}
         </p>
       </section>
     </main>
