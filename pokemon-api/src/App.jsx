@@ -1,17 +1,17 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // ========================================
 // CONFIGURAÇÕES
 // ========================================
 
+const API = "https://pokeapi.co/api/v2";
 const TOTAL_POKEMON = 1025;
 
-const API = "https://pokeapi.co/api/v2";
-
 const SPRITES =
-  "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions";
+  "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
 
+// Ordem de prioridade das imagens principais
 const jogosNormais = [
   "generation-ix/legends-za",
   "generation-ix/scarlet-violet",
@@ -19,6 +19,7 @@ const jogosNormais = [
   "generation-viii/sword-shield",
 ];
 
+// Jogos preferidos para formas especiais
 const jogosFormas = {
   mega: "generation-ix/legends-za",
   gigantamax: "generation-viii/sword-shield",
@@ -58,9 +59,48 @@ const tiposTextoEscuro = [
   "steel",
 ];
 
+const configuracaoStats = {
+  hp: {
+    nome: "HP",
+    cor: "#22C55E",
+  },
+  attack: {
+    nome: "Ataque",
+    cor: "#EF4444",
+  },
+  defense: {
+    nome: "Defesa",
+    cor: "#F59E0B",
+  },
+  "special-attack": {
+    nome: "Ataque Especial",
+    cor: "#3B82F6",
+  },
+  "special-defense": {
+    nome: "Defesa Especial",
+    cor: "#A855F7",
+  },
+  speed: {
+    nome: "Velocidade",
+    cor: "#EC4899",
+  },
+};
+
 // ========================================
-// FUNÇÕES DE IMAGEM
+// FUNÇÕES AUXILIARES
 // ========================================
+
+function formatarNome(nome) {
+  return nome.replaceAll("-", " ");
+}
+
+function normalizarTexto(texto) {
+  return String(texto)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
 
 function identificarForma(nome) {
   if (nome.includes("-mega")) return "mega";
@@ -72,37 +112,47 @@ function identificarForma(nome) {
   return "normal";
 }
 
-function urlSprite(id, jogo, shiny = false) {
+function imagemHome(id, shiny = false) {
+  const pasta = shiny ? "shiny/" : "";
+
+  return `${SPRITES}/other/home/${pasta}${id}.png`;
+}
+
+function imagemPixel(id) {
+  return `${SPRITES}/${id}.png`;
+}
+
+function criarUrlSprite(id, jogo, shiny = false) {
   const pasta = shiny ? "shiny/" : "";
 
   const extensao = jogo.includes("ultra-sun-ultra-moon")
     ? "gif"
     : "webp";
 
-  return `${SPRITES}/${jogo}/${pasta}${id}.${extensao}`;
+  return `${SPRITES}/versions/${jogo}/${pasta}${id}.${extensao}`;
 }
 
+// Outras imagens, usadas somente como última alternativa
 function imagensAlternativas(dados) {
   return {
     normal:
+      dados.sprites?.other?.home?.front_default ||
       dados.sprites?.other?.["official-artwork"]
         ?.front_default ||
-      dados.sprites?.other?.home?.front_default ||
       dados.sprites?.front_default ||
       null,
 
     shiny:
+      dados.sprites?.other?.home?.front_shiny ||
       dados.sprites?.other?.["official-artwork"]
         ?.front_shiny ||
-      dados.sprites?.other?.home?.front_shiny ||
       dados.sprites?.front_shiny ||
       null,
   };
 }
 
-// Espera a imagem carregar, mas com limite de tempo.
-// Assim nenhuma imagem fica travada infinitamente.
-function verificarImagem(url, limite = 3500) {
+// Verifica se a imagem realmente carrega
+function verificarImagem(url, limite = 2500) {
   return new Promise((resolve) => {
     if (!url) {
       resolve(false);
@@ -110,13 +160,12 @@ function verificarImagem(url, limite = 3500) {
     }
 
     const imagem = new Image();
-
-    let terminou = false;
+    let finalizado = false;
 
     const finalizar = (resultado) => {
-      if (terminou) return;
+      if (finalizado) return;
 
-      terminou = true;
+      finalizado = true;
       clearTimeout(tempo);
 
       imagem.onload = null;
@@ -136,14 +185,12 @@ function verificarImagem(url, limite = 3500) {
   });
 }
 
-// Procura os sprites na ordem de prioridade.
+// Procura os sprites dos jogos na ordem definida
 async function procurarSprite(id, jogos, shiny = false) {
   for (const jogo of jogos) {
-    const url = urlSprite(id, jogo, shiny);
+    const url = criarUrlSprite(id, jogo, shiny);
 
-    const existe = await verificarImagem(url);
-
-    if (existe) {
+    if (await verificarImagem(url)) {
       return url;
     }
   }
@@ -151,42 +198,95 @@ async function procurarSprite(id, jogos, shiny = false) {
   return null;
 }
 
-// Prepara as imagens normais e Shiny.
-async function prepararPokemon(dados, jogos) {
+// ========================================
+// NOVA PRIORIDADE DAS IMAGENS
+// ========================================
+
+// Primeiro procura nos jogos.
+// Se nenhum tiver imagem, procura no Pokémon HOME.
+// Se o HOME também não tiver, usa uma imagem alternativa.
+async function escolherImagem(
+  dados,
+  jogos,
+  shiny = false
+) {
+  // 1. Sprites dos jogos
+  const spriteJogo = await procurarSprite(
+    dados.id,
+    jogos,
+    shiny
+  );
+
+  if (spriteJogo) {
+    return spriteJogo;
+  }
+
+  // 2. Pokémon HOME
+  const home = shiny
+    ? dados.sprites?.other?.home?.front_shiny ||
+      imagemHome(dados.id, true)
+    : dados.sprites?.other?.home?.front_default ||
+      imagemHome(dados.id);
+
+  if (await verificarImagem(home, 3500)) {
+    return home;
+  }
+
+  // 3. Última alternativa
   const alternativas = imagensAlternativas(dados);
 
-  // Procura primeiro a imagem normal.
-  const imagemNormal = await procurarSprite(
-    dados.id,
-    jogos,
-    false
-  );
+  const candidatos = shiny
+    ? [
+        alternativas.shiny,
+        dados.sprites?.other?.["official-artwork"]
+          ?.front_shiny,
+        dados.sprites?.front_shiny,
+      ]
+    : [
+        alternativas.normal,
+        dados.sprites?.other?.["official-artwork"]
+          ?.front_default,
+        dados.sprites?.front_default,
+      ];
 
-  // Procura também a Shiny.
-  const imagemShiny = await procurarSprite(
-    dados.id,
-    jogos,
-    true
-  );
+  for (const url of [...new Set(candidatos.filter(Boolean))]) {
+    if (await verificarImagem(url, 3500)) {
+      return url;
+    }
+  }
+
+  return null;
+}
+
+async function prepararPokemon(dados, jogos) {
+  const [normal, shiny] = await Promise.all([
+    escolherImagem(dados, jogos, false),
+    escolherImagem(dados, jogos, true),
+  ]);
 
   return {
     ...dados,
-    imagemNormalForma:
-      imagemNormal || alternativas.normal,
-
-    imagemShinyForma:
-      imagemShiny || alternativas.shiny,
+    imagemNormalForma: normal,
+    imagemShinyForma: shiny,
   };
 }
 
 async function prepararForma(dados) {
   const categoria = identificarForma(dados.name);
-  const jogo = jogosFormas[categoria];
+  const jogoPreferido = jogosFormas[categoria];
 
-  const preparado = await prepararPokemon(
-    dados,
-    jogo ? [jogo] : jogosNormais
-  );
+  // Formas especiais mantêm seu jogo preferido.
+  // Depois, tentam os outros quatro jogos e o HOME.
+  const jogos = jogoPreferido
+    ? [
+        jogoPreferido,
+        ...jogosNormais.filter(
+          (jogo) => jogo !== jogoPreferido
+        ),
+      ]
+    : jogosNormais;
+
+  const preparado = await prepararPokemon(dados, jogos);
 
   return {
     ...preparado,
@@ -195,30 +295,23 @@ async function prepararForma(dados) {
 }
 
 // ========================================
-// COMPONENTE DE CARREGAMENTO
+// CARREGAMENTO
 // ========================================
 
 function Carregamento({
   mensagem = "Carregando Pokémon...",
-  pequeno = false,
 }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center ${
-        pequeno ? "py-6" : "py-16"
-      }`}
+      className="flex flex-col items-center justify-center py-14"
       role="status"
     >
       <div
-        className={`rounded-full border-4
-          border-red-200 border-t-red-500
-          animate-spin ${
-            pequeno ? "w-9 h-9" : "w-12 h-12"
-          }`}
+        className="w-12 h-12 rounded-full border-4 border-red-200 border-t-red-500 animate-spin"
         aria-hidden="true"
       />
 
-      <p className="mt-4 text-gray-600 font-medium text-sm text-center">
+      <p className="mt-4 text-sm font-medium text-gray-500 text-center">
         {mensagem}
       </p>
     </div>
@@ -226,81 +319,53 @@ function Carregamento({
 }
 
 // ========================================
-// COMPONENTE DA IMAGEM
+// IMAGEM PRINCIPAL
 // ========================================
 
-// O componente é recriado quando o Pokémon ou
-// a versão Shiny muda. Isso evita estados antigos
-// e imagens que ficam carregando sem parar.
-
 function ImagemPokemon({ pokemon, shiny }) {
-  const alternativas = imagensAlternativas(pokemon);
-
   const principal = shiny
     ? pokemon.imagemShinyForma
     : pokemon.imagemNormalForma;
+
+  const alternativas = imagensAlternativas(pokemon);
 
   const reserva = shiny
     ? alternativas.shiny
     : alternativas.normal;
 
-  const [urlAtual, setUrlAtual] = useState(
-    principal || reserva
-  );
-
+  const [urlAtual, setUrlAtual] = useState(null);
   const [status, setStatus] = useState("carregando");
 
   useEffect(() => {
     let ativo = true;
 
-    async function carregarImagem() {
+    async function carregar() {
       setStatus("carregando");
+      setUrlAtual(null);
 
-      const primeiraUrl = principal || reserva;
+      const candidatos = [
+        principal,
+        reserva,
+      ].filter(Boolean);
 
-      if (!primeiraUrl) {
-        if (ativo) {
-          setUrlAtual(null);
-          setStatus("erro");
-        }
-        return;
-      }
-
-      // Primeiro tenta a imagem selecionada.
-      const principalExiste = await verificarImagem(
-        primeiraUrl,
-        5000
-      );
-
-      if (!ativo) return;
-
-      if (principalExiste) {
-        setUrlAtual(primeiraUrl);
-        setStatus("pronto");
-        return;
-      }
-
-      // Se falhar, tenta a alternativa.
-      if (reserva && reserva !== primeiraUrl) {
-        const reservaExiste = await verificarImagem(
-          reserva,
-          5000
-        );
+      for (const url of [...new Set(candidatos)]) {
+        const existe = await verificarImagem(url, 5000);
 
         if (!ativo) return;
 
-        if (reservaExiste) {
-          setUrlAtual(reserva);
+        if (existe) {
+          setUrlAtual(url);
           setStatus("pronto");
           return;
         }
       }
 
-      setUrlAtual(null);
-      setStatus("erro");
+      if (ativo) {
+        setStatus("erro");
+      }
     }
 
-    carregarImagem();
+    carregar();
 
     return () => {
       ativo = false;
@@ -308,19 +373,17 @@ function ImagemPokemon({ pokemon, shiny }) {
   }, [principal, reserva]);
 
   return (
-    <div className="relative flex items-center justify-center w-full h-48 sm:h-56 md:h-64">
+    <div className="relative w-full h-52 sm:h-60 flex items-center justify-center">
       {status === "carregando" && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div
-            className="w-10 h-10 rounded-full border-4 border-red-200 border-t-red-500 animate-spin"
-            role="status"
-            aria-label="Carregando imagem"
-          />
-        </div>
+        <div
+          className="w-10 h-10 rounded-full border-4 border-red-200 border-t-red-500 animate-spin"
+          role="status"
+          aria-label="Carregando imagem"
+        />
       )}
 
       {status === "erro" && (
-        <p className="text-sm text-gray-500 text-center">
+        <p className="text-sm text-gray-500">
           Imagem indisponível
         </p>
       )}
@@ -328,9 +391,11 @@ function ImagemPokemon({ pokemon, shiny }) {
       {status === "pronto" && urlAtual && (
         <img
           src={urlAtual}
-          alt={`${pokemon.name}${shiny ? " Shiny" : ""}`}
-          className="w-full h-full max-w-64 object-contain drop-shadow-md"
+          alt={`${formatarNome(pokemon.name)} ${
+            shiny ? "Shiny" : ""
+          }`}
           onError={() => setStatus("erro")}
+          className="w-full h-full max-w-64 object-contain drop-shadow-lg"
         />
       )}
     </div>
@@ -338,7 +403,126 @@ function ImagemPokemon({ pokemon, shiny }) {
 }
 
 // ========================================
-// APLICAÇÃO PRINCIPAL
+// IMAGEM HOME NAS SUGESTÕES
+// ========================================
+
+function ImagemSugestao({ id, nome }) {
+  const [url, setUrl] = useState(() => imagemHome(id));
+  const [falhou, setFalhou] = useState(false);
+
+  return (
+    <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-lg bg-slate-50">
+      {!falhou && (
+        <img
+          src={url}
+          alt={nome}
+          loading="lazy"
+          className="w-11 h-11 object-contain"
+          onError={() => {
+            if (url !== imagemPixel(id)) {
+              setUrl(imagemPixel(id));
+            } else {
+              setFalhou(true);
+            }
+          }}
+        />
+      )}
+
+      {falhou && (
+        <span
+          className="text-lg text-slate-400"
+          aria-hidden="true"
+        >
+          ◉
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ========================================
+// ESTATÍSTICAS
+// ========================================
+
+function EstatisticasPokemon({ pokemon }) {
+  if (!pokemon?.stats) return null;
+
+  const total = pokemon.stats.reduce(
+    (soma, stat) => soma + stat.base_stat,
+    0
+  );
+
+  return (
+    <section className="mt-6 mb-6 text-left">
+      <h3 className="text-lg font-extrabold text-slate-800 mb-4">
+        📊 Estatísticas
+      </h3>
+
+      <div className="space-y-4">
+        {pokemon.stats.map((stat) => {
+          const tipo = stat.stat.name;
+          const configuracao = configuracaoStats[tipo];
+
+          if (!configuracao) return null;
+
+          const valor = stat.base_stat;
+          const porcentagem = Math.min(
+            (valor / 255) * 100,
+            100
+          );
+
+          return (
+            <div key={tipo}>
+              <div className="flex items-center justify-between gap-3 mb-1.5">
+                <span className="text-sm font-semibold text-slate-700">
+                  {configuracao.nome}
+                </span>
+
+                <span className="text-sm font-extrabold text-slate-800 tabular-nums">
+                  {valor}
+                </span>
+              </div>
+
+              <div
+                className="w-full h-3.5 bg-gray-200 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-label={configuracao.nome}
+                aria-valuenow={valor}
+                aria-valuemin={0}
+                aria-valuemax={255}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${porcentagem}%`,
+                    backgroundColor: configuracao.cor,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 pt-4 border-t border-gray-200 flex justify-between items-center">
+        <span className="text-sm font-bold text-slate-600">
+          Total de atributos
+        </span>
+
+        <span className="text-lg font-extrabold text-slate-800">
+          {total}
+        </span>
+      </div>
+
+      <p className="mt-2 text-xs text-gray-400">
+        Barras em escala de 0 a 255.
+      </p>
+    </section>
+  );
+}
+
+// ========================================
+// APP PRINCIPAL
 // ========================================
 
 export default function App() {
@@ -352,6 +536,12 @@ export default function App() {
   const [pesquisa, setPesquisa] = useState("");
   const [erroPesquisa, setErroPesquisa] = useState("");
 
+  const [listaPokemon, setListaPokemon] = useState([]);
+  const [carregandoLista, setCarregandoLista] =
+    useState(true);
+  const [mostrarSugestoes, setMostrarSugestoes] =
+    useState(false);
+
   const [shiny, setShiny] = useState(false);
 
   const [megas, setMegas] = useState([]);
@@ -360,12 +550,87 @@ export default function App() {
 
   const [formaSelecionada, setFormaSelecionada] =
     useState(null);
-
   const [carregandoFormas, setCarregandoFormas] =
     useState(false);
 
   // ========================================
-  // BUSCAR POKÉMON
+  // LISTA PARA PESQUISA
+  // ========================================
+
+  useEffect(() => {
+    const controlador = new AbortController();
+
+    async function carregarNomes() {
+      try {
+        const resposta = await fetch(
+          `${API}/pokemon?limit=${TOTAL_POKEMON}`,
+          { signal: controlador.signal }
+        );
+
+        if (!resposta.ok) {
+          throw new Error("Erro ao buscar nomes");
+        }
+
+        const dados = await resposta.json();
+
+        const lista = dados.results.map((item) => {
+          const partes = item.url
+            .split("/")
+            .filter(Boolean);
+
+          return {
+            id: Number(partes[partes.length - 1]),
+            nome: item.name,
+          };
+        });
+
+        setListaPokemon(lista);
+      } catch (erro) {
+        if (erro.name !== "AbortError") {
+          console.error("Erro na lista:", erro);
+        }
+      } finally {
+        if (!controlador.signal.aborted) {
+          setCarregandoLista(false);
+        }
+      }
+    }
+
+    carregarNomes();
+
+    return () => controlador.abort();
+  }, []);
+
+  // ========================================
+  // SUGESTÕES
+  // ========================================
+
+  const sugestoes = useMemo(() => {
+    const texto = normalizarTexto(pesquisa);
+
+    if (texto.length < 2 || /^\d+$/.test(texto)) {
+      return [];
+    }
+
+    return listaPokemon
+      .filter((item) =>
+        normalizarTexto(item.nome).includes(texto)
+      )
+      .sort((a, b) => {
+        const aComeca = a.nome.startsWith(texto);
+        const bComeca = b.nome.startsWith(texto);
+
+        if (aComeca !== bComeca) {
+          return aComeca ? -1 : 1;
+        }
+
+        return a.id - b.id;
+      })
+      .slice(0, 6);
+  }, [pesquisa, listaPokemon]);
+
+  // ========================================
+  // BUSCAR POKÉMON PRINCIPAL
   // ========================================
 
   useEffect(() => {
@@ -381,6 +646,7 @@ export default function App() {
       setMegas([]);
       setGigantamax([]);
       setRegionais([]);
+      setCarregandoFormas(false);
 
       try {
         const resposta = await fetch(
@@ -393,8 +659,6 @@ export default function App() {
 
         const dados = await resposta.json();
 
-        // Aguarda a seleção da imagem antes
-        // de mostrar o Pokémon na tela.
         const preparado = await prepararPokemon(
           dados,
           jogosNormais
@@ -407,7 +671,6 @@ export default function App() {
         console.error("Erro ao buscar Pokémon:", erro);
 
         if (ativo) {
-          setPokemon(null);
           setErroCarregamento(
             "Não foi possível carregar o Pokémon."
           );
@@ -453,6 +716,14 @@ export default function App() {
           ({ pokemon: variedade }) => {
             const nome = variedade.name;
 
+            // Não mostrar Pikachu de Alola
+            if (
+              pokemon.id === 25 &&
+              nome.includes("-alola")
+            ) {
+              return false;
+            }
+
             return (
               nome.includes("-mega") ||
               nome.includes("-gmax") ||
@@ -486,34 +757,32 @@ export default function App() {
           })
         );
 
-        const formasValidas = resultados.filter(
-          (forma) =>
-            forma && forma.imagemNormalForma
+        const formas = resultados.filter(
+          (forma) => forma && forma.imagemNormalForma
         );
 
-        if (ativo) {
-          setMegas(
-            formasValidas.filter(
-              (forma) =>
-                forma.categoriaForma === "mega"
-            )
-          );
+        if (!ativo) return;
 
-          setGigantamax(
-            formasValidas.filter(
-              (forma) =>
-                forma.categoriaForma === "gigantamax"
-            )
-          );
+        setMegas(
+          formas.filter(
+            (forma) => forma.categoriaForma === "mega"
+          )
+        );
 
-          setRegionais(
-            formasValidas.filter((forma) =>
-              ["alola", "galar", "hisui"].includes(
-                forma.categoriaForma
-              )
+        setGigantamax(
+          formas.filter(
+            (forma) =>
+              forma.categoriaForma === "gigantamax"
+          )
+        );
+
+        setRegionais(
+          formas.filter((forma) =>
+            ["alola", "galar", "hisui"].includes(
+              forma.categoriaForma
             )
-          );
-        }
+          )
+        );
       } catch (erro) {
         console.error(
           "Erro ao buscar formas:",
@@ -537,38 +806,80 @@ export default function App() {
     return () => {
       ativo = false;
     };
-  }, [pokemon?.id]);
+  }, [pokemon]);
 
   // ========================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO E PESQUISA
   // ========================================
 
   function mudarPokemon(novoId) {
-    if (novoId < 1 || novoId > TOTAL_POKEMON) {
+    if (
+      novoId < 1 ||
+      novoId > TOTAL_POKEMON
+    ) {
       return;
     }
 
     setId(novoId);
     setShiny(false);
     setFormaSelecionada(null);
+    setMostrarSugestoes(false);
     setErroPesquisa("");
+  }
+
+  function selecionarSugestao(item) {
+    setPesquisa("");
+    mudarPokemon(item.id);
   }
 
   function pesquisarPokemon(evento) {
     evento.preventDefault();
 
-    const numero = Number(pesquisa);
+    const texto = normalizarTexto(pesquisa);
 
-    if (
-      pesquisa.trim() === "" ||
-      !Number.isInteger(numero) ||
-      numero < 1 ||
-      numero > TOTAL_POKEMON
-    ) {
+    if (!texto) {
       setErroPesquisa(
-        `Digite um número entre 1 e ${TOTAL_POKEMON}.`
+        "Digite o nome ou número de um Pokémon."
       );
       return;
+    }
+
+    let numero;
+
+    if (/^\d+$/.test(texto)) {
+      numero = Number(texto);
+
+      if (
+        !Number.isInteger(numero) ||
+        numero < 1 ||
+        numero > TOTAL_POKEMON
+      ) {
+        setErroPesquisa(
+          `Digite um número entre 1 e ${TOTAL_POKEMON}.`
+        );
+        return;
+      }
+    } else {
+      if (carregandoLista) {
+        setErroPesquisa(
+          "Aguarde a lista de Pokémon carregar."
+        );
+        return;
+      }
+
+      const encontrado = listaPokemon.find(
+        (item) =>
+          normalizarTexto(item.nome) === texto
+      );
+
+      if (!encontrado) {
+        setErroPesquisa(
+          "Pokémon não encontrado. Escolha uma sugestão."
+        );
+        return;
+      }
+
+      numero = encontrado.id;
     }
 
     setPesquisa("");
@@ -592,10 +903,11 @@ export default function App() {
   }
 
   // ========================================
-  // ESTILOS DINÂMICOS
+  // ESTILOS
   // ========================================
 
-  const pokemonAtual = formaSelecionada || pokemon;
+  const pokemonAtual =
+    formaSelecionada || pokemon;
 
   const categoriaAtual =
     formaSelecionada?.categoriaForma;
@@ -605,7 +917,7 @@ export default function App() {
   );
 
   const bordaCard = shiny
-    ? "border-yellow-400 shadow-yellow-400/30"
+    ? "border-yellow-400"
     : categoriaAtual === "mega"
       ? "border-purple-500"
       : categoriaAtual === "gigantamax"
@@ -659,20 +971,28 @@ export default function App() {
         {/* PESQUISA */}
         <form
           onSubmit={pesquisarPokemon}
-          className="mb-5"
+          className="relative mb-5"
         >
           <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
             <input
-              type="number"
-              min="1"
-              max={TOTAL_POKEMON}
-              inputMode="numeric"
-              placeholder="Nº do Pokémon"
-              aria-label="Número do Pokémon"
+              type="text"
+              autoComplete="off"
+              placeholder="Nome ou Nº do Pokémon"
+              aria-label="Pesquisar Pokémon"
               value={pesquisa}
-              onChange={(evento) =>
-                setPesquisa(evento.target.value)
+              onChange={(evento) => {
+                setPesquisa(evento.target.value);
+                setMostrarSugestoes(true);
+                setErroPesquisa("");
+              }}
+              onFocus={() =>
+                setMostrarSugestoes(true)
               }
+              onKeyDown={(evento) => {
+                if (evento.key === "Escape") {
+                  setMostrarSugestoes(false);
+                }
+              }}
               className="w-full min-w-0 h-12
                 border border-gray-300 rounded-xl
                 px-3 text-base bg-white
@@ -691,6 +1011,48 @@ export default function App() {
             </button>
           </div>
 
+          {/* SUGESTÕES COM IMAGENS HOME */}
+          {mostrarSugestoes &&
+            sugestoes.length > 0 && (
+              <div
+                className="absolute top-14 left-0 right-0 z-50
+                  max-h-72 overflow-y-auto
+                  bg-white rounded-xl shadow-2xl
+                  border border-gray-200"
+              >
+                {sugestoes.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() =>
+                      selecionarSugestao(item)
+                    }
+                    className="w-full flex items-center gap-3
+                      px-3 py-2 text-left
+                      hover:bg-red-50
+                      border-b border-gray-100
+                      last:border-b-0
+                      cursor-pointer transition-colors"
+                  >
+                    <ImagemSugestao
+                      id={item.id}
+                      nome={item.nome}
+                    />
+
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-bold capitalize text-slate-800 truncate">
+                        {formatarNome(item.nome)}
+                      </span>
+
+                      <span className="block text-xs text-gray-500">
+                        #{String(item.id).padStart(4, "0")}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
           {erroPesquisa && (
             <p
               role="alert"
@@ -701,12 +1063,12 @@ export default function App() {
           )}
         </form>
 
-        {/* CARREGAMENTO */}
+        {/* POKÉMON */}
         {carregando ? (
           <Carregamento />
         ) : pokemonAtual ? (
           <>
-            {/* IMAGEM */}
+            {/* IMAGEM PRINCIPAL */}
             <div
               className={`${fundoImagem}
                 rounded-2xl p-3 sm:p-5 mb-5
@@ -736,25 +1098,16 @@ export default function App() {
                 font-extrabold capitalize text-slate-800
                 break-words mb-2"
             >
-              {pokemonAtual.name.replaceAll("-", " ")}
+              {formatarNome(pokemonAtual.name)}
             </h2>
 
             {/* CATEGORIA DA FORMA */}
             {categoriaAtual && (
-              <p
-                className={`text-center font-semibold
-                  text-sm mb-3 ${
-                    categoriaAtual === "mega"
-                      ? "text-purple-600"
-                      : categoriaAtual === "gigantamax"
-                        ? "text-pink-600"
-                        : "text-green-700"
-                  }`}
-              >
+              <p className="text-center font-semibold text-sm mb-3 text-slate-600">
                 {categoriaAtual === "mega"
                   ? "🧬 Mega Evolução"
                   : categoriaAtual === "gigantamax"
-                    ? "💗 Forma Gigantamax"
+                    ? "💥 Forma Gigantamax"
                     : categoriaAtual === "alola"
                       ? "🌴 Forma de Alola"
                       : categoriaAtual === "galar"
@@ -768,24 +1121,22 @@ export default function App() {
               {pokemonAtual.types.map((tipo) => {
                 const nomeTipo = tipo.type.name;
 
-                const cor =
-                  coresTipos[nomeTipo] || "#64748B";
-
-                const textoEscuro =
-                  tiposTextoEscuro.includes(nomeTipo);
-
                 return (
                   <span
                     key={nomeTipo}
                     style={{
-                      backgroundColor: cor,
-                      color: textoEscuro
-                        ? "#1F2937"
-                        : "#FFFFFF",
+                      backgroundColor:
+                        coresTipos[nomeTipo] ||
+                        "#64748B",
+                      color:
+                        tiposTextoEscuro.includes(
+                          nomeTipo
+                        )
+                          ? "#1F2937"
+                          : "#FFFFFF",
                     }}
                     className="px-4 py-2 rounded-full
-                      text-sm font-bold capitalize
-                      shadow-sm"
+                      text-sm font-bold capitalize shadow-sm"
                   >
                     {nomeTipo}
                   </span>
@@ -796,7 +1147,9 @@ export default function App() {
             {/* SHINY */}
             <button
               type="button"
-              onClick={() => setShiny(!shiny)}
+              onClick={() =>
+                setShiny(!shiny)
+              }
               disabled={!shinyDisponivel}
               className={`${estiloBotao} mb-4 ${
                 !shinyDisponivel
@@ -838,10 +1191,7 @@ export default function App() {
                 {(megas.length > 0 ||
                   gigantamax.length > 0 ||
                   regionais.length > 0) && (
-                  <h3
-                    className="text-sm font-bold text-slate-600
-                      uppercase tracking-wide mb-3"
-                  >
+                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-3">
                     Formas disponíveis
                   </h3>
                 )}
@@ -857,13 +1207,14 @@ export default function App() {
                           selecionarForma(mega)
                         }
                         disabled={
-                          formaSelecionada?.id === mega.id
+                          formaSelecionada?.id ===
+                          mega.id
                         }
                         className={`${estiloBotao}
                           bg-purple-600 hover:bg-purple-700
                           text-white`}
                       >
-                        🧬 {mega.name.replaceAll("-", " ")}
+                        🧬 {formatarNome(mega.name)}
                       </button>
                     ))}
                   </div>
@@ -880,13 +1231,14 @@ export default function App() {
                           selecionarForma(gmax)
                         }
                         disabled={
-                          formaSelecionada?.id === gmax.id
+                          formaSelecionada?.id ===
+                          gmax.id
                         }
                         className={`${estiloBotao}
                           bg-pink-600 hover:bg-pink-700
                           text-white`}
                       >
-                        💗 {gmax.name.replaceAll("-", " ")}
+                        💥 {formatarNome(gmax.name)}
                       </button>
                     ))}
                   </div>
@@ -903,24 +1255,32 @@ export default function App() {
                           selecionarForma(regional)
                         }
                         disabled={
-                          formaSelecionada?.id === regional.id
+                          formaSelecionada?.id ===
+                          regional.id
                         }
                         className={`${estiloBotao}
                           bg-green-600 hover:bg-green-700
                           text-white`}
                       >
-                        {regional.categoriaForma === "alola"
+                        {regional.categoriaForma ===
+                        "alola"
                           ? "🌴 "
-                          : regional.categoriaForma === "galar"
+                          : regional.categoriaForma ===
+                              "galar"
                             ? "🏰 "
                             : "🏔️ "}
-                        {regional.name.replaceAll("-", " ")}
+                        {formatarNome(regional.name)}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
             )}
+
+            {/* ESTATÍSTICAS */}
+            <EstatisticasPokemon
+              pokemon={pokemonAtual}
+            />
           </>
         ) : (
           <p
@@ -939,7 +1299,9 @@ export default function App() {
         >
           <button
             type="button"
-            onClick={() => mudarPokemon(id - 1)}
+            onClick={() =>
+              mudarPokemon(id - 1)
+            }
             disabled={id <= 1}
             className={`${estiloBotao}
               bg-gray-200 hover:bg-gray-300
@@ -950,7 +1312,9 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => mudarPokemon(id + 1)}
+            onClick={() =>
+              mudarPokemon(id + 1)
+            }
             disabled={id >= TOTAL_POKEMON}
             className={`${estiloBotao}
               bg-blue-500 hover:bg-blue-600
