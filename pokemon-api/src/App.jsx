@@ -1,9 +1,9 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-// ========================================
+// =====================================
 // CONFIGURAÇÕES
-// ========================================
+// =====================================
 
 const API = "https://pokeapi.co/api/v2";
 const TOTAL_POKEMON = 1025;
@@ -11,7 +11,6 @@ const TOTAL_POKEMON = 1025;
 const SPRITES =
   "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
 
-// Ordem de prioridade das imagens principais
 const jogosNormais = [
   "generation-ix/legends-za",
   "generation-ix/scarlet-violet",
@@ -19,7 +18,6 @@ const jogosNormais = [
   "generation-viii/sword-shield",
 ];
 
-// Jogos preferidos para formas especiais
 const jogosFormas = {
   mega: "generation-ix/legends-za",
   gigantamax: "generation-viii/sword-shield",
@@ -60,18 +58,9 @@ const tiposTextoEscuro = [
 ];
 
 const configuracaoStats = {
-  hp: {
-    nome: "HP",
-    cor: "#22C55E",
-  },
-  attack: {
-    nome: "Ataque",
-    cor: "#EF4444",
-  },
-  defense: {
-    nome: "Defesa",
-    cor: "#F59E0B",
-  },
+  hp: { nome: "HP", cor: "#22C55E" },
+  attack: { nome: "Ataque", cor: "#EF4444" },
+  defense: { nome: "Defesa", cor: "#F59E0B" },
   "special-attack": {
     nome: "Ataque Especial",
     cor: "#3B82F6",
@@ -80,15 +69,12 @@ const configuracaoStats = {
     nome: "Defesa Especial",
     cor: "#A855F7",
   },
-  speed: {
-    nome: "Velocidade",
-    cor: "#EC4899",
-  },
+  speed: { nome: "Velocidade", cor: "#EC4899" },
 };
 
-// ========================================
+// =====================================
 // FUNÇÕES AUXILIARES
-// ========================================
+// =====================================
 
 function formatarNome(nome) {
   return nome.replaceAll("-", " ");
@@ -114,7 +100,6 @@ function identificarForma(nome) {
 
 function imagemHome(id, shiny = false) {
   const pasta = shiny ? "shiny/" : "";
-
   return `${SPRITES}/other/home/${pasta}${id}.png`;
 }
 
@@ -132,7 +117,6 @@ function criarUrlSprite(id, jogo, shiny = false) {
   return `${SPRITES}/versions/${jogo}/${pasta}${id}.${extensao}`;
 }
 
-// Outras imagens, usadas somente como última alternativa
 function imagensAlternativas(dados) {
   return {
     normal:
@@ -151,7 +135,7 @@ function imagensAlternativas(dados) {
   };
 }
 
-// Verifica se a imagem realmente carrega
+// Verifica se a imagem realmente existe
 function verificarImagem(url, limite = 2500) {
   return new Promise((resolve) => {
     if (!url) {
@@ -185,7 +169,10 @@ function verificarImagem(url, limite = 2500) {
   });
 }
 
-// Procura os sprites dos jogos na ordem definida
+// =====================================
+// PRIORIDADE DOS SPRITES
+// =====================================
+
 async function procurarSprite(id, jogos, shiny = false) {
   for (const jogo of jogos) {
     const url = criarUrlSprite(id, jogo, shiny);
@@ -198,28 +185,15 @@ async function procurarSprite(id, jogos, shiny = false) {
   return null;
 }
 
-// ========================================
-// NOVA PRIORIDADE DAS IMAGENS
-// ========================================
-
-// Primeiro procura nos jogos.
-// Se nenhum tiver imagem, procura no Pokémon HOME.
-// Se o HOME também não tiver, usa uma imagem alternativa.
-async function escolherImagem(
-  dados,
-  jogos,
-  shiny = false
-) {
-  // 1. Sprites dos jogos
+async function escolherImagem(dados, jogos, shiny = false) {
+  // 1. Procura nos jogos
   const spriteJogo = await procurarSprite(
     dados.id,
     jogos,
     shiny
   );
 
-  if (spriteJogo) {
-    return spriteJogo;
-  }
+  if (spriteJogo) return spriteJogo;
 
   // 2. Pokémon HOME
   const home = shiny
@@ -232,7 +206,7 @@ async function escolherImagem(
     return home;
   }
 
-  // 3. Última alternativa
+  // 3. Últimas alternativas
   const alternativas = imagensAlternativas(dados);
 
   const candidatos = shiny
@@ -275,8 +249,6 @@ async function prepararForma(dados) {
   const categoria = identificarForma(dados.name);
   const jogoPreferido = jogosFormas[categoria];
 
-  // Formas especiais mantêm seu jogo preferido.
-  // Depois, tentam os outros quatro jogos e o HOME.
   const jogos = jogoPreferido
     ? [
         jogoPreferido,
@@ -294,9 +266,9 @@ async function prepararForma(dados) {
   };
 }
 
-// ========================================
-// CARREGAMENTO
-// ========================================
+// =====================================
+// COMPONENTE DE CARREGAMENTO
+// =====================================
 
 function Carregamento({
   mensagem = "Carregando Pokémon...",
@@ -318,9 +290,9 @@ function Carregamento({
   );
 }
 
-// ========================================
+// =====================================
 // IMAGEM PRINCIPAL
-// ========================================
+// =====================================
 
 function ImagemPokemon({ pokemon, shiny }) {
   const principal = shiny
@@ -360,9 +332,7 @@ function ImagemPokemon({ pokemon, shiny }) {
         }
       }
 
-      if (ativo) {
-        setStatus("erro");
-      }
+      if (ativo) setStatus("erro");
     }
 
     carregar();
@@ -402,9 +372,9 @@ function ImagemPokemon({ pokemon, shiny }) {
   );
 }
 
-// ========================================
-// IMAGEM HOME NAS SUGESTÕES
-// ========================================
+// =====================================
+// IMAGENS HOME DAS SUGESTÕES
+// =====================================
 
 function ImagemSugestao({ id, nome }) {
   const [url, setUrl] = useState(() => imagemHome(id));
@@ -429,10 +399,7 @@ function ImagemSugestao({ id, nome }) {
       )}
 
       {falhou && (
-        <span
-          className="text-lg text-slate-400"
-          aria-hidden="true"
-        >
+        <span className="text-lg text-slate-400">
           ◉
         </span>
       )}
@@ -440,9 +407,9 @@ function ImagemSugestao({ id, nome }) {
   );
 }
 
-// ========================================
+// =====================================
 // ESTATÍSTICAS
-// ========================================
+// =====================================
 
 function EstatisticasPokemon({ pokemon }) {
   if (!pokemon?.stats) return null;
@@ -466,6 +433,7 @@ function EstatisticasPokemon({ pokemon }) {
           if (!configuracao) return null;
 
           const valor = stat.base_stat;
+
           const porcentagem = Math.min(
             (valor / 255) * 100,
             100
@@ -521,9 +489,9 @@ function EstatisticasPokemon({ pokemon }) {
   );
 }
 
-// ========================================
+// =====================================
 // APP PRINCIPAL
-// ========================================
+// =====================================
 
 export default function App() {
   const [id, setId] = useState(25);
@@ -539,8 +507,15 @@ export default function App() {
   const [listaPokemon, setListaPokemon] = useState([]);
   const [carregandoLista, setCarregandoLista] =
     useState(true);
+
   const [mostrarSugestoes, setMostrarSugestoes] =
     useState(false);
+
+  // NOVO: índice selecionado com as setas
+  const [sugestaoSelecionada, setSugestaoSelecionada] =
+    useState(-1);
+
+  const listaSugestoesRef = useRef(null);
 
   const [shiny, setShiny] = useState(false);
 
@@ -550,12 +525,13 @@ export default function App() {
 
   const [formaSelecionada, setFormaSelecionada] =
     useState(null);
+
   const [carregandoFormas, setCarregandoFormas] =
     useState(false);
 
-  // ========================================
-  // LISTA PARA PESQUISA
-  // ========================================
+  // =====================================
+  // CARREGAR NOMES PARA PESQUISA
+  // =====================================
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -601,9 +577,9 @@ export default function App() {
     return () => controlador.abort();
   }, []);
 
-  // ========================================
-  // SUGESTÕES
-  // ========================================
+  // =====================================
+  // SUGESTÕES DE PESQUISA
+  // =====================================
 
   const sugestoes = useMemo(() => {
     const texto = normalizarTexto(pesquisa);
@@ -629,9 +605,31 @@ export default function App() {
       .slice(0, 6);
   }, [pesquisa, listaPokemon]);
 
-  // ========================================
+  // =====================================
+  // ROLAGEM AUTOMÁTICA DAS SUGESTÕES
+  // =====================================
+
+  useEffect(() => {
+    if (!mostrarSugestoes) return;
+    if (sugestaoSelecionada < 0) return;
+
+    const lista = listaSugestoesRef.current;
+
+    if (!lista) return;
+
+    const item = lista.children[sugestaoSelecionada];
+
+    if (item) {
+      item.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [sugestaoSelecionada, mostrarSugestoes]);
+
+  // =====================================
   // BUSCAR POKÉMON PRINCIPAL
-  // ========================================
+  // =====================================
 
   useEffect(() => {
     let ativo = true;
@@ -689,9 +687,9 @@ export default function App() {
     };
   }, [id]);
 
-  // ========================================
+  // =====================================
   // BUSCAR FORMAS ESPECIAIS
-  // ========================================
+  // =====================================
 
   useEffect(() => {
     if (!pokemon) return;
@@ -784,10 +782,7 @@ export default function App() {
           )
         );
       } catch (erro) {
-        console.error(
-          "Erro ao buscar formas:",
-          erro
-        );
+        console.error("Erro ao buscar formas:", erro);
 
         if (ativo) {
           setMegas([]);
@@ -808,12 +803,13 @@ export default function App() {
     };
   }, [pokemon]);
 
-  // ========================================
+  // =====================================
   // NAVEGAÇÃO E PESQUISA
-  // ========================================
+  // =====================================
 
   function mudarPokemon(novoId) {
     if (
+      !Number.isInteger(novoId) ||
       novoId < 1 ||
       novoId > TOTAL_POKEMON
     ) {
@@ -823,17 +819,34 @@ export default function App() {
     setId(novoId);
     setShiny(false);
     setFormaSelecionada(null);
+
     setMostrarSugestoes(false);
+    setSugestaoSelecionada(-1);
     setErroPesquisa("");
   }
 
   function selecionarSugestao(item) {
     setPesquisa("");
+    setMostrarSugestoes(false);
+    setSugestaoSelecionada(-1);
+
     mudarPokemon(item.id);
   }
 
   function pesquisarPokemon(evento) {
     evento.preventDefault();
+
+    // Enter escolhe a sugestão destacada
+    if (
+      mostrarSugestoes &&
+      sugestaoSelecionada >= 0 &&
+      sugestoes[sugestaoSelecionada]
+    ) {
+      selecionarSugestao(
+        sugestoes[sugestaoSelecionada]
+      );
+      return;
+    }
 
     const texto = normalizarTexto(pesquisa);
 
@@ -902,12 +915,107 @@ export default function App() {
     }
   }
 
-  // ========================================
-  // ESTILOS
-  // ========================================
+  // =====================================
+  // NOVO: SETAS ESQUERDA E DIREITA
+  // =====================================
 
-  const pokemonAtual =
-    formaSelecionada || pokemon;
+  useEffect(() => {
+    function controlarTeclado(evento) {
+      // Não interferir na digitação
+      const elemento = document.activeElement;
+
+      const digitando =
+        elemento?.tagName === "INPUT" ||
+        elemento?.tagName === "TEXTAREA" ||
+        elemento?.tagName === "SELECT" ||
+        elemento?.isContentEditable;
+
+      if (digitando) return;
+
+      // Ignorar combinações como Ctrl + seta
+      if (
+        evento.ctrlKey ||
+        evento.altKey ||
+        evento.metaKey
+      ) {
+        return;
+      }
+
+      if (evento.key === "ArrowRight") {
+        if (id >= TOTAL_POKEMON) return;
+
+        evento.preventDefault();
+        mudarPokemon(id + 1);
+      }
+
+      if (evento.key === "ArrowLeft") {
+        if (id <= 1) return;
+
+        evento.preventDefault();
+        mudarPokemon(id - 1);
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      controlarTeclado
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        controlarTeclado
+      );
+    };
+  }, [id]);
+
+  // =====================================
+  // NOVO: SETAS NA PESQUISA
+  // =====================================
+
+  function controlarSetasPesquisa(evento) {
+    if (evento.key === "ArrowDown") {
+      if (sugestoes.length === 0) return;
+
+      evento.preventDefault();
+      setMostrarSugestoes(true);
+
+      setSugestaoSelecionada((atual) =>
+        atual >= sugestoes.length - 1
+          ? 0
+          : atual + 1
+      );
+    }
+
+    if (evento.key === "ArrowUp") {
+      if (sugestoes.length === 0) return;
+
+      evento.preventDefault();
+      setMostrarSugestoes(true);
+
+      setSugestaoSelecionada((atual) =>
+        atual <= 0
+          ? sugestoes.length - 1
+          : atual - 1
+      );
+    }
+
+    if (evento.key === "Escape") {
+      evento.preventDefault();
+
+      setMostrarSugestoes(false);
+      setSugestaoSelecionada(-1);
+    }
+
+    // O Enter é tratado pelo formulário
+    // para evitar duas seleções.
+  }
+
+  // =====================================
+  // ESTILOS
+  // =====================================
+
+  const pokemonAtual = formaSelecionada || pokemon;
 
   const categoriaAtual =
     formaSelecionada?.categoriaForma;
@@ -942,9 +1050,9 @@ export default function App() {
     "cursor-pointer disabled:opacity-40 " +
     "disabled:cursor-not-allowed";
 
-  // ========================================
+  // =====================================
   // INTERFACE
-  // ========================================
+  // =====================================
 
   return (
     <main className="min-h-screen w-full flex items-center justify-center px-3 py-5 sm:px-6 sm:py-10">
@@ -979,20 +1087,29 @@ export default function App() {
               autoComplete="off"
               placeholder="Nome ou Nº do Pokémon"
               aria-label="Pesquisar Pokémon"
+              aria-autocomplete="list"
+              aria-expanded={
+                mostrarSugestoes &&
+                sugestoes.length > 0
+              }
+              aria-controls="lista-pokemon"
+              aria-activedescendant={
+                mostrarSugestoes &&
+                sugestaoSelecionada >= 0
+                  ? `sugestao-${sugestoes[sugestaoSelecionada]?.id}`
+                  : undefined
+              }
               value={pesquisa}
               onChange={(evento) => {
                 setPesquisa(evento.target.value);
                 setMostrarSugestoes(true);
+                setSugestaoSelecionada(-1);
                 setErroPesquisa("");
               }}
-              onFocus={() =>
-                setMostrarSugestoes(true)
-              }
-              onKeyDown={(evento) => {
-                if (evento.key === "Escape") {
-                  setMostrarSugestoes(false);
-                }
+              onFocus={() => {
+                setMostrarSugestoes(true);
               }}
+              onKeyDown={controlarSetasPesquisa}
               className="w-full min-w-0 h-12
                 border border-gray-300 rounded-xl
                 px-3 text-base bg-white
@@ -1011,28 +1128,44 @@ export default function App() {
             </button>
           </div>
 
-          {/* SUGESTÕES COM IMAGENS HOME */}
+          {/* SUGESTÕES COM NAVEGAÇÃO POR SETAS */}
           {mostrarSugestoes &&
             sugestoes.length > 0 && (
               <div
+                id="lista-pokemon"
+                ref={listaSugestoesRef}
+                role="listbox"
+                aria-label="Sugestões de Pokémon"
                 className="absolute top-14 left-0 right-0 z-50
                   max-h-72 overflow-y-auto
                   bg-white rounded-xl shadow-2xl
                   border border-gray-200"
               >
-                {sugestoes.map((item) => (
+                {sugestoes.map((item, indice) => (
                   <button
+                    id={`sugestao-${item.id}`}
                     key={item.id}
                     type="button"
+                    role="option"
+                    aria-selected={
+                      sugestaoSelecionada === indice
+                    }
                     onClick={() =>
                       selecionarSugestao(item)
                     }
-                    className="w-full flex items-center gap-3
+                    onMouseEnter={() =>
+                      setSugestaoSelecionada(indice)
+                    }
+                    className={`w-full flex items-center gap-3
                       px-3 py-2 text-left
-                      hover:bg-red-50
                       border-b border-gray-100
                       last:border-b-0
-                      cursor-pointer transition-colors"
+                      cursor-pointer transition-colors
+                      ${
+                        sugestaoSelecionada === indice
+                          ? "bg-red-100 ring-1 ring-inset ring-red-300"
+                          : "hover:bg-red-50"
+                      }`}
                   >
                     <ImagemSugestao
                       id={item.id}
@@ -1048,6 +1181,15 @@ export default function App() {
                         #{String(item.id).padStart(4, "0")}
                       </span>
                     </span>
+
+                    {sugestaoSelecionada === indice && (
+                      <span
+                        className="text-red-600 font-bold"
+                        aria-hidden="true"
+                      >
+                        ↵
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1068,7 +1210,7 @@ export default function App() {
           <Carregamento />
         ) : pokemonAtual ? (
           <>
-            {/* IMAGEM PRINCIPAL */}
+            {/* IMAGEM */}
             <div
               className={`${fundoImagem}
                 rounded-2xl p-3 sm:p-5 mb-5
@@ -1101,7 +1243,7 @@ export default function App() {
               {formatarNome(pokemonAtual.name)}
             </h2>
 
-            {/* CATEGORIA DA FORMA */}
+            {/* CATEGORIA */}
             {categoriaAtual && (
               <p className="text-center font-semibold text-sm mb-3 text-slate-600">
                 {categoriaAtual === "mega"
@@ -1147,9 +1289,7 @@ export default function App() {
             {/* SHINY */}
             <button
               type="button"
-              onClick={() =>
-                setShiny(!shiny)
-              }
+              onClick={() => setShiny(!shiny)}
               disabled={!shinyDisponivel}
               className={`${estiloBotao} mb-4 ${
                 !shinyDisponivel
@@ -1196,7 +1336,7 @@ export default function App() {
                   </h3>
                 )}
 
-                {/* MEGA EVOLUÇÕES */}
+                {/* MEGAS */}
                 {megas.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     {megas.map((mega) => (
@@ -1244,7 +1384,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* FORMAS REGIONAIS */}
+                {/* REGIONAIS */}
                 {regionais.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {regionais.map((regional) => (
@@ -1278,9 +1418,7 @@ export default function App() {
             )}
 
             {/* ESTATÍSTICAS */}
-            <EstatisticasPokemon
-              pokemon={pokemonAtual}
-            />
+            <EstatisticasPokemon pokemon={pokemonAtual} />
           </>
         ) : (
           <p
@@ -1299,9 +1437,7 @@ export default function App() {
         >
           <button
             type="button"
-            onClick={() =>
-              mudarPokemon(id - 1)
-            }
+            onClick={() => mudarPokemon(id - 1)}
             disabled={id <= 1}
             className={`${estiloBotao}
               bg-gray-200 hover:bg-gray-300
@@ -1312,9 +1448,7 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() =>
-              mudarPokemon(id + 1)
-            }
+            onClick={() => mudarPokemon(id + 1)}
             disabled={id >= TOTAL_POKEMON}
             className={`${estiloBotao}
               bg-blue-500 hover:bg-blue-600
@@ -1326,6 +1460,10 @@ export default function App() {
 
         <p className="text-center text-xs text-gray-500 mt-5">
           Pokémon #{id} de {TOTAL_POKEMON}
+        </p>
+
+        <p className="text-center text-xs text-gray-400 mt-2">
+          Use ← → para navegar entre os Pokémon
         </p>
       </section>
     </main>
