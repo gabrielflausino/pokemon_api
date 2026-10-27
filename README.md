@@ -1,55 +1,29 @@
-# 🔴 Pokédex — Pokémon API
+# 🔴 Pokédex
 
-Projeto de uma Pokédex interativa desenvolvido com React, JavaScript e Tailwind CSS, utilizando a PokéAPI para buscar informações sobre os Pokémon.
+Projeto de uma Pokédex desenvolvido com React e Tailwind CSS, utilizando a PokéAPI para buscar informações dos Pokémon.
 
-## 📖 Sobre o projeto
-
-O objetivo do projeto é praticar o consumo de APIs e o desenvolvimento de interfaces com React.
-
-A aplicação permite visualizar diferentes Pokémon, mostrando suas imagens, nomes, números e tipos.
+Criei esse projeto para praticar React, consumo de APIs e desenvolvimento de interfaces responsivas.
 
 ## ⚙️ Funcionalidades
 
-- Visualização dos Pokémon
-- Navegação entre Pokémon anteriores e próximos
-- Exibição de nome, número e tipos
-- Consumo de dados da PokéAPI
-- Indicador de carregamento
-- Tratamento básico de erros
+- Pesquisa de Pokémon pelo número da Pokédex
+- Navegação entre Pokémon
+- Exibição de nome, número, imagem e tipos
+- Visualização da versão Shiny
+- Mega Evoluções e formas Gigantamax
+- Formas regionais de Alola, Galar e Hisui
+- Imagens de diferentes jogos da franquia
 
-## 🛠️ Tecnologias utilizadas
+## 💻 Tecnologias utilizadas
 
 - React
 - JavaScript
-- HTML e CSS
 - Tailwind CSS
 - Vite
 - PokéAPI
 
-## 💻 Como executar
+## 👀 Sobre
 
-Clone o repositório e entre na pasta do projeto.
+Projeto pessoal desenvolvido para colocar em prática meus conhecimentos de desenvolvimento front-end.
 
-Instale as dependências:
-
-```bash
-npm install
-```
-
-Inicie o projeto:
-
-```bash
-npm run dev
-```
-
-Abra o endereço indicado no terminal.
-
-## 🌐 API utilizada
-
-Os dados são obtidos pela [PokéAPI](https://pokeapi.co/), uma API pública que disponibiliza informações sobre os Pokémon.
-
-## 👨‍💻 Desenvolvedor
-
-Desenvolvido por **Thebieel41**.
-
-Estudante de Engenharia de Software na FIAP.
+Os dados dos Pokémon são fornecidos pela [PokéAPI](https://pokeapi.co/).
