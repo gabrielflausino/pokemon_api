@@ -25,5 +25,6 @@ Criei esse projeto para praticar React, consumo de APIs e desenvolvimento de int
 ## 👀 Sobre
 
 Projeto pessoal desenvolvido para colocar em prática meus conhecimentos de desenvolvimento front-end.
-
+Link: https://pokemon-api-nine-rose.vercel.app/
 Os dados dos Pokémon são fornecidos pela [PokéAPI](https://pokeapi.co/).
+
